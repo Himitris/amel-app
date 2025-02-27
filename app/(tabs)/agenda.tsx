@@ -1,0 +1,208 @@
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SectionList, TouchableOpacity } from 'react-native';
+import { format, isToday, isTomorrow, isThisWeek, isThisMonth, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { useEvents } from '../../context/EventsContext';
+import { router } from 'expo-router';
+import { Clock, MapPin } from 'lucide-react-native';
+
+export default function AgendaScreen() {
+  const [sections, setSections] = useState([]);
+  const { events, loading } = useEvents();
+
+  useEffect(() => {
+    if (events) {
+      const today = [];
+      const tomorrow = [];
+      const thisWeek = [];
+      const thisMonth = [];
+      const later = [];
+
+      events.forEach(event => {
+        const eventDate = parseISO(event.startDate);
+        
+        if (isToday(eventDate)) {
+          today.push(event);
+        } else if (isTomorrow(eventDate)) {
+          tomorrow.push(event);
+        } else if (isThisWeek(eventDate)) {
+          thisWeek.push(event);
+        } else if (isThisMonth(eventDate)) {
+          thisMonth.push(event);
+        } else {
+          later.push(event);
+        }
+      });
+
+      const sortByDate = (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      
+      const newSections = [
+        { title: 'Aujourd\'hui', data: today.sort(sortByDate) },
+        { title: 'Demain', data: tomorrow.sort(sortByDate) },
+        { title: 'Cette semaine', data: thisWeek.sort(sortByDate) },
+        { title: 'Ce mois-ci', data: thisMonth.sort(sortByDate) },
+        { title: 'Plus tard', data: later.sort(sortByDate) },
+      ].filter(section => section.data.length > 0);
+
+      setSections(newSections);
+    }
+  }, [events]);
+
+  const renderEvent = ({ item }) => {
+    const startTime = format(new Date(item.startDate), 'HH:mm');
+    const endTime = format(new Date(item.endDate), 'HH:mm');
+    const eventDate = format(new Date(item.startDate), 'EEEE d MMMM', { locale: fr });
+    
+    return (
+      <TouchableOpacity 
+        style={[styles.eventCard, { borderLeftColor: item.color || '#007AFF' }]}
+        onPress={() => router.push({ pathname: '/event-details', params: { id: item.id } })}
+      >
+        <View style={styles.eventTimeContainer}>
+          <Text style={styles.eventTime}>{startTime}</Text>
+          <Text style={styles.eventTimeSeparator}>-</Text>
+          <Text style={styles.eventTime}>{endTime}</Text>
+        </View>
+        
+        <View style={styles.eventContent}>
+          <Text style={styles.eventTitle}>{item.title}</Text>
+          
+          {item.description ? (
+            <Text style={styles.eventDescription} numberOfLines={2}>
+              {item.description}
+            </Text>
+          ) : null}
+          
+          <View style={styles.eventDetails}>
+            {item.location ? (
+              <View style={styles.eventDetailItem}>
+                <MapPin size={14} color="#8E8E93" />
+                <Text style={styles.eventDetailText}>{item.location}</Text>
+              </View>
+            ) : null}
+            
+            <View style={styles.eventDetailItem}>
+              <Clock size={14} color="#8E8E93" />
+              <Text style={styles.eventDetailText}>{eventDate}</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderSectionHeader = ({ section }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{section.title}</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {sections.length === 0 ? (
+        <View style={styles.noEventsContainer}>
+          <Clock size={48} color="#C7C7CC" />
+          <Text style={styles.noEventsText}>Aucun événement à venir</Text>
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          renderItem={renderEvent}
+          renderSectionHeader={renderSectionHeader}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.eventsList}
+          stickySectionHeadersEnabled={true}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  noEventsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  noEventsText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    textAlign: 'center',
+  },
+  eventsList: {
+    paddingBottom: 16,
+  },
+  sectionHeader: {
+    backgroundColor: '#F2F2F7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  eventCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  eventTimeContainer: {
+    marginRight: 12,
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  eventTime: {
+    fontSize: 14,
+    color: '#8E8E93',
+  },
+  eventTimeSeparator: {
+    fontSize: 14,
+    color: '#C7C7CC',
+    marginVertical: 2,
+  },
+  eventContent: {
+    flex: 1,
+  },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 4,
+  },
+  eventDescription: {
+    fontSize: 14,
+    color: '#3A3A3C',
+    marginBottom: 8,
+  },
+  eventDetails: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  eventDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+    marginBottom: 4,
+  },
+  eventDetailText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginLeft: 4,
+  },
+});
