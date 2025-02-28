@@ -1,27 +1,43 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+// app/(tabs)/index.tsx
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, RefreshControl } from 'react-native';
 import { Calendar as CalendarComponent, DateData } from 'react-native-calendars';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useEvents } from '../../context/EventsContext';
 import { router } from 'expo-router';
-import { Clock, MapPin } from 'lucide-react-native';
+import { Clock, MapPin, CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
+import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
+import { useSlots } from '../../context/SlotsContext';
+import AnimatedSlotCard from '../../components/AnimatedSlotCard';
+
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 export default function MonthScreen() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [markedDates, setMarkedDates] = useState({});
-  const { events, loading } = useEvents();
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'MMMM yyyy', { locale: fr }));
+  
+  const { slots, loading, refreshSlots } = useSlots();
   
   useEffect(() => {
-    if (events) {
+    if (slots) {
       const marked = {};
-      events.forEach(event => {
-        const eventDate = event.startDate.split('T')[0];
+      slots.forEach(slot => {
+        const eventDate = new Date(slot.startDate).toISOString().split('T')[0];
+        
+        // Définir les couleurs en fonction du statut
+        let dotColor = COLORS.primary;
+        if (slot.status === 'booked') dotColor = COLORS.secondary;
+        if (slot.status === 'cancelled') dotColor = COLORS.gray;
+        if (slot.status === 'completed') dotColor = COLORS.success;
+        
         if (marked[eventDate]) {
-          marked[eventDate].dots.push({ color: event.color || '#007AFF' });
+          marked[eventDate].dots.push({ color: dotColor });
         } else {
           marked[eventDate] = {
-            dots: [{ color: event.color || '#007AFF' }],
+            dots: [{ color: dotColor }],
           };
         }
       });
@@ -30,110 +46,126 @@ export default function MonthScreen() {
       marked[selectedDate] = {
         ...marked[selectedDate],
         selected: true,
-        selectedColor: '#007AFF',
+        selectedColor: COLORS.primary,
       };
       
       setMarkedDates(marked);
     }
-  }, [events, selectedDate]);
+  }, [slots, selectedDate]);
 
   const onDayPress = (day: DateData) => {
     setSelectedDate(day.dateString);
   };
+  
+  const onMonthChange = (month: DateData) => {
+    setCurrentMonth(format(new Date(month.dateString), 'MMMM yyyy', { locale: fr }));
+  };
 
-  const filteredEvents = events.filter(event => 
-    event.startDate.startsWith(selectedDate)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshSlots();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshSlots]);
+
+  const filteredSlots = slots.filter(slot => 
+    new Date(slot.startDate).toISOString().split('T')[0] === selectedDate
   ).sort((a, b) => 
     new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
   );
 
-  const renderEvent = ({ item }) => {
-    const startTime = new Date(item.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const endTime = new Date(item.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    return (
-      <TouchableOpacity 
-        style={[styles.eventCard, { borderLeftColor: item.color || '#007AFF' }]}
-        onPress={() => router.push({ pathname: '/event-details', params: { id: item.id } })}
-      >
-        <View style={styles.eventTimeContainer}>
-          <Text style={styles.eventTime}>{startTime}</Text>
-          <Text style={styles.eventTimeSeparator}>-</Text>
-          <Text style={styles.eventTime}>{endTime}</Text>
-        </View>
-        
-        <View style={styles.eventContent}>
-          <Text style={styles.eventTitle}>{item.title}</Text>
-          
-          {item.description ? (
-            <Text style={styles.eventDescription} numberOfLines={2}>
-              {item.description}
-            </Text>
-          ) : null}
-          
-          <View style={styles.eventDetails}>
-            {item.location ? (
-              <View style={styles.eventDetailItem}>
-                <MapPin size={14} color="#8E8E93" />
-                <Text style={styles.eventDetailText}>{item.location}</Text>
-              </View>
-            ) : null}
-            
-            {item.participants && item.participants.length > 0 ? (
-              <View style={styles.eventDetailItem}>
-                <Text style={styles.eventDetailText}>
-                  {item.participants.length} participant{item.participants.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderSlot = ({ item, index }) => (
+    <AnimatedSlotCard slot={item} index={index} />
+  );
+
+  const ListEmptyComponent = () => (
+    <Animated.View 
+      style={styles.noSlotsContainer}
+      entering={FadeIn.delay(300)}
+      exiting={FadeOut}
+    >
+      <Clock size={48} color={COLORS.veryLightGray} />
+      <Text style={styles.noSlotsText}>Aucun créneau pour cette journée</Text>
+    </Animated.View>
+  );
+
+  const ListHeaderComponent = () => (
+    <Animated.View 
+      style={styles.calendarHeader}
+      entering={FadeIn}
+      layout={Layout.springify()}
+    >
+      <CalendarIcon size={20} color={COLORS.primary} />
+      <Text style={styles.dateHeader}>
+        {format(new Date(selectedDate), 'EEEE d MMMM yyyy', { locale: fr })}
+      </Text>
+    </Animated.View>
+  );
 
   return (
     <View style={styles.container}>
+      <View style={styles.monthHeader}>
+        <Text style={styles.monthTitle}>{currentMonth}</Text>
+      </View>
+      
       <CalendarComponent
         current={selectedDate}
         onDayPress={onDayPress}
+        onMonthChange={onMonthChange}
         markingType={'multi-dot'}
         markedDates={markedDates}
         theme={{
-          calendarBackground: '#FFFFFF',
-          textSectionTitleColor: '#8E8E93',
-          selectedDayBackgroundColor: '#007AFF',
-          selectedDayTextColor: '#FFFFFF',
-          todayTextColor: '#007AFF',
-          dayTextColor: '#1C1C1E',
-          textDisabledColor: '#C7C7CC',
-          dotColor: '#007AFF',
-          selectedDotColor: '#FFFFFF',
-          arrowColor: '#007AFF',
-          monthTextColor: '#1C1C1E',
-          indicatorColor: '#007AFF',
+          calendarBackground: COLORS.background,
+          textSectionTitleColor: COLORS.gray,
+          selectedDayBackgroundColor: COLORS.primary,
+          selectedDayTextColor: COLORS.background,
+          todayTextColor: COLORS.primary,
+          dayTextColor: COLORS.dark,
+          textDisabledColor: COLORS.lightGray,
+          dotColor: COLORS.primary,
+          selectedDotColor: COLORS.background,
+          arrowColor: COLORS.primary,
+          monthTextColor: COLORS.dark,
+          indicatorColor: COLORS.primary,
+          textDayFontFamily: FONTS.regular.fontFamily,
+          textMonthFontFamily: FONTS.semiBold.fontFamily,
+          textDayHeaderFontFamily: FONTS.medium.fontFamily,
         }}
+        renderArrow={(direction) => (
+          direction === 'left' 
+            ? <ChevronLeft size={20} color={COLORS.primary} /> 
+            : <ChevronRight size={20} color={COLORS.primary} />
+        )}
       />
       
-      <View style={styles.eventsContainer}>
-        <Text style={styles.dateHeader}>
-          {format(new Date(selectedDate), 'EEEE d MMMM yyyy', { locale: fr })}
-        </Text>
+      <View style={styles.slotsContainer}>
+        <AnimatedFlatList
+          data={filteredSlots}
+          renderItem={renderSlot}
+          keyExtractor={item => item.id || item.startDate}
+          contentContainerStyle={styles.slotsList}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]} 
+              tintColor={COLORS.primary}
+            />
+          }
+          ListHeaderComponent={ListHeaderComponent}
+          ListEmptyComponent={ListEmptyComponent}
+          showsVerticalScrollIndicator={false}
+          itemLayoutAnimation={Layout.springify()}
+        />
         
-        {filteredEvents.length === 0 ? (
-          <View style={styles.noEventsContainer}>
-            <Clock size={48} color="#C7C7CC" />
-            <Text style={styles.noEventsText}>Aucun événement pour cette journée</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredEvents}
-            renderItem={renderEvent}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.eventsList}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => router.push('/create-slot')}
+        >
+          <Text style={styles.addButtonText}>+</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -142,83 +174,69 @@ export default function MonthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
   },
-  eventsContainer: {
-    flex: 1,
+  monthHeader: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.background,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.veryLightGray,
+    ...SHADOWS.small,
   },
-  dateHeader: {
-    fontSize: 18,
+  monthTitle: {
+    fontSize: SIZES.title,
     fontWeight: '600',
-    marginBottom: 16,
-    color: '#1C1C1E',
+    color: COLORS.dark,
     textTransform: 'capitalize',
   },
-  eventsList: {
-    paddingBottom: 16,
-  },
-  noEventsContainer: {
+  slotsContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'relative',
   },
-  noEventsText: {
+  slotsList: {
+    paddingBottom: 80,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  dateHeader: {
+    fontSize: SIZES.title,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: COLORS.dark,
+    textTransform: 'capitalize',
+  },
+  noSlotsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  noSlotsText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#8E8E93',
+    fontSize: SIZES.body,
+    color: COLORS.gray,
     textAlign: 'center',
   },
-  eventCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 12,
-    borderLeftWidth: 4,
-  },
-  eventTimeContainer: {
-    marginRight: 12,
+  addButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 60,
+    ...SHADOWS.medium,
   },
-  eventTime: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  eventTimeSeparator: {
-    fontSize: 14,
-    color: '#C7C7CC',
-    marginVertical: 2,
-  },
-  eventContent: {
-    flex: 1,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 4,
-  },
-  eventDescription: {
-    fontSize: 14,
-    color: '#3A3A3C',
-    marginBottom: 8,
-  },
-  eventDetails: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  eventDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 12,
-    marginBottom: 4,
-  },
-  eventDetailText: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 4,
+  addButtonText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: COLORS.background,
   },
 });

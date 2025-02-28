@@ -1,8 +1,11 @@
+// app/_layout.tsx
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '../context/AuthContext';
 import { EventsProvider } from '../context/EventsContext';
+import { SlotsProvider } from '../context/SlotsContext';
+import { COLORS } from '../constants/theme';
 
 declare global {
   interface Window {
@@ -20,12 +23,22 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <EventsProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
-        </Stack>
-        <StatusBar style="auto" />
+        <SlotsProvider>
+          <Stack 
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: COLORS.background },
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="slot-details" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen name="create-slot" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
+          </Stack>
+          <StatusBar style="auto" />
+        </SlotsProvider>
       </EventsProvider>
     </AuthProvider>
   );
