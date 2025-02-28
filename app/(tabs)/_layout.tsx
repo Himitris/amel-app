@@ -122,6 +122,7 @@ export default function TabLayout() {
           headerTitle: 'Rendez-vous',
         }}
       />
+      {/* Assurez-vous que vous avez un fichier profile.tsx dans le dossier (tabs) */}
       <Tabs.Screen
         name="profile"
         options={{

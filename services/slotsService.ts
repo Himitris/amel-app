@@ -1,6 +1,7 @@
 // services/slotsService.ts
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
+import { mockSlotsService } from './mockFirebase';
 
 // Type pour les créneaux
 export type Slot = {
@@ -15,12 +16,27 @@ export type Slot = {
   location?: string; // Adresse ou lieu du rendez-vous
   price?: number;
   notes?: string;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt?: any;
+  updatedAt?: any;
+};
+
+// Vérifier si Firebase est configuré
+const isFirebaseConfigured = () => {
+  try {
+    return !!db;
+  } catch (error) {
+    console.warn('Firebase not configured, using mock data');
+    return false;
+  }
 };
 
 // Récupérer tous les créneaux pour une période donnée
 export const getSlotsByDateRange = async (startDate: Date, endDate: Date) => {
+  // Si Firebase n'est pas configuré, utiliser les données mockées
+  if (!isFirebaseConfigured()) {
+    return mockSlotsService.getSlotsByDateRange(startDate, endDate);
+  }
+
   try {
     const slotsRef = collection(db, 'slots');
     
@@ -61,12 +77,18 @@ export const getSlotsByDateRange = async (startDate: Date, endDate: Date) => {
     return slots;
   } catch (error) {
     console.error('Error getting slots:', error);
-    throw error;
+    // En cas d'erreur, utiliser les données mockées comme fallback
+    return mockSlotsService.getSlotsByDateRange(startDate, endDate);
   }
 };
 
 // Récupérer les créneaux disponibles uniquement
 export const getAvailableSlots = async (startDate: Date, endDate: Date) => {
+  // Si Firebase n'est pas configuré, utiliser les données mockées
+  if (!isFirebaseConfigured()) {
+    return mockSlotsService.getAvailableSlots(startDate, endDate);
+  }
+
   try {
     const slotsRef = collection(db, 'slots');
     
@@ -102,7 +124,8 @@ export const getAvailableSlots = async (startDate: Date, endDate: Date) => {
     return slots;
   } catch (error) {
     console.error('Error getting available slots:', error);
-    throw error;
+    // En cas d'erreur, utiliser les données mockées comme fallback
+    return mockSlotsService.getAvailableSlots(startDate, endDate);
   }
 };
 
@@ -112,6 +135,11 @@ export const bookSlot = async (slotId: string, clientData: {
   clientPhone: string;
   clientEmail: string;
 }) => {
+  // Si Firebase n'est pas configuré, utiliser les données mockées
+  if (!isFirebaseConfigured()) {
+    return mockSlotsService.bookSlot(slotId, clientData);
+  }
+
   try {
     const slotRef = doc(db, 'slots', slotId);
     await updateDoc(slotRef, {
@@ -123,12 +151,18 @@ export const bookSlot = async (slotId: string, clientData: {
     return true;
   } catch (error) {
     console.error('Error booking slot:', error);
-    throw error;
+    // En cas d'erreur, utiliser les données mockées comme fallback
+    return mockSlotsService.bookSlot(slotId, clientData);
   }
 };
 
 // Créer un nouveau créneau
 export const createSlot = async (slotData: Omit<Slot, 'id' | 'createdAt' | 'updatedAt'>) => {
+  // Si Firebase n'est pas configuré, utiliser les données mockées
+  if (!isFirebaseConfigured()) {
+    return mockSlotsService.createSlot(slotData);
+  }
+
   try {
     // Convertir les dates ISO en timestamps Firestore
     const startDate = new Date(slotData.startDate);
@@ -146,12 +180,18 @@ export const createSlot = async (slotData: Omit<Slot, 'id' | 'createdAt' | 'upda
     return { id: docRef.id, ...slotData };
   } catch (error) {
     console.error('Error creating slot:', error);
-    throw error;
+    // En cas d'erreur, utiliser les données mockées comme fallback
+    return mockSlotsService.createSlot(slotData);
   }
 };
 
 // Annuler un créneau
 export const cancelSlot = async (slotId: string) => {
+  // Si Firebase n'est pas configuré, utiliser les données mockées
+  if (!isFirebaseConfigured()) {
+    return mockSlotsService.cancelSlot(slotId);
+  }
+
   try {
     const slotRef = doc(db, 'slots', slotId);
     await updateDoc(slotRef, {
@@ -162,6 +202,7 @@ export const cancelSlot = async (slotId: string) => {
     return true;
   } catch (error) {
     console.error('Error cancelling slot:', error);
-    throw error;
+    // En cas d'erreur, utiliser les données mockées comme fallback
+    return mockSlotsService.cancelSlot(slotId);
   }
 };

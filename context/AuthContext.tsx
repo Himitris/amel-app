@@ -1,5 +1,7 @@
+// context/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Alert, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define types for our context
 type User = {
@@ -32,20 +34,21 @@ const AuthContext = createContext<AuthContextType>({
 // Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext);
 
+// Clé pour stocker les données utilisateur dans AsyncStorage
+const USER_STORAGE_KEY = 'user_data';
+
 // Provider component that wraps the app and makes auth object available
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [initialized, setInitialized] = useState<boolean>(false);
 
-  // Mock authentication for demo purposes
-  // In a real app, this would connect to Firebase Auth
+  // Vérifier si l'utilisateur est déjà connecté
   useEffect(() => {
-    // Simulate checking if user is already logged in
     const checkUser = async () => {
       try {
-        // Mock checking stored credentials
-        const storedUser = localStorage.getItem('user');
+        // Récupérer l'utilisateur stocké dans AsyncStorage
+        const storedUser = await AsyncStorage.getItem(USER_STORAGE_KEY);
         if (storedUser) {
           setUser(JSON.parse(storedUser));
         }
@@ -63,22 +66,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Mock authentication
-      // In a real app, this would call Firebase Auth signInWithEmailAndPassword
+      // Simuler une validation de connexion
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // For demo, we'll just create a mock user
+      // Simuler une validation simple
+      if (password.length < 6) {
+        throw new Error('Invalid credentials');
+      }
+      
+      // Créer un utilisateur mock
       const mockUser = {
-        id: 'user123',
+        id: 'user-' + Date.now(),
         email,
-        name: 'Demo User',
+        name: email.split('@')[0],
       };
       
       setUser(mockUser);
       
-      // Store user in localStorage for web
-      if (Platform.OS === 'web') {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-      }
+      // Stocker l'utilisateur dans AsyncStorage
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -91,22 +97,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
-      // Mock registration
-      // In a real app, this would call Firebase Auth createUserWithEmailAndPassword
+      // Simuler un délai d'inscription
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // For demo, we'll just create a mock user
+      // Simuler une validation simple
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+      }
+      
+      // Créer un utilisateur mock
       const mockUser = {
-        id: 'user' + Math.floor(Math.random() * 1000),
+        id: 'user-' + Date.now(),
         email,
         name,
       };
       
       setUser(mockUser);
       
-      // Store user in localStorage for web
-      if (Platform.OS === 'web') {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-      }
+      // Stocker l'utilisateur dans AsyncStorage
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
     } catch (error) {
       console.error('Sign up error:', error);
       throw error;
@@ -119,15 +128,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setLoading(true);
     try {
-      // Mock sign out
-      // In a real app, this would call Firebase Auth signOut
+      // Simuler un délai de déconnexion
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       setUser(null);
       
-      // Remove user from localStorage for web
-      if (Platform.OS === 'web') {
-        localStorage.removeItem('user');
-      }
+      // Supprimer l'utilisateur d'AsyncStorage
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
     } catch (error) {
       console.error('Sign out error:', error);
       throw error;
@@ -140,26 +147,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
-      // Mock Google sign in
-      // In a real app, this would use Firebase Auth signInWithPopup or expo-auth-session
+      // Simuler un délai de connexion
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      if (Platform.OS === 'web') {
-        Alert.alert('Google Sign In', 'This would open Google sign in on a real app');
+      if (Platform.OS !== 'web') {
+        Alert.alert('Information', 'Cette fonctionnalité serait normalement implémentée avec Expo Auth Session');
       }
       
-      // For demo, we'll just create a mock user
+      // Créer un utilisateur mock
       const mockUser = {
-        id: 'google123',
-        email: 'google@example.com',
-        name: 'Google User',
+        id: 'google-' + Date.now(),
+        email: 'user' + Math.floor(Math.random() * 1000) + '@gmail.com',
+        name: 'Utilisateur Google',
       };
       
       setUser(mockUser);
       
-      // Store user in localStorage for web
-      if (Platform.OS === 'web') {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-      }
+      // Stocker l'utilisateur dans AsyncStorage
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
     } catch (error) {
       console.error('Google sign in error:', error);
       throw error;
