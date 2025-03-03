@@ -16,6 +16,12 @@ type Event = {
   participants?: string[];
   reminder?: boolean;
   reminderTime?: number;
+  // Nouveaux champs pour différencier les événements
+  eventType?: 'professional' | 'personal';
+  service?: string;
+  clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
 };
 
 type FirestoreBooking = {
@@ -30,6 +36,7 @@ type FirestoreBooking = {
   service: string;
   status: string;
   time: string;
+  eventType?: string; // Nouveau champ
 };
 
 type EventsContextType = {
@@ -80,23 +87,39 @@ const convertBookingToEvent = (booking: FirestoreBooking): Event => {
   
   endDate.setMinutes(endDate.getMinutes() + duration);
   
-  // Attribuer une couleur en fonction du service
+  // Attribuer une couleur en fonction du service ou du type d'événement
   let color = '#007AFF'; // bleu par défaut
-  if (booking.service === 'coloration') color = '#FF9500'; // orange
-  if (booking.service === 'cut_color') color = '#FF3B30'; // rouge
-  if (booking.service === 'Coupe') color = '#34C759'; // vert
+  let eventType: 'professional' | 'personal' = 'professional'; // Type par défaut
+  
+  // Vérifier si le type est explicitement défini
+  if (booking.eventType) {
+    eventType = booking.eventType as 'professional' | 'personal';
+    if (eventType === 'personal') {
+      color = '#FFCC00'; // Jaune pour événements personnels
+    }
+  }
+  
+  // Couleurs pour les événements professionnels en fonction du service
+  if (eventType === 'professional') {
+    if (booking.service === 'coloration') color = '#FF9500'; // orange
+    if (booking.service === 'cut_color') color = '#FF3B30'; // rouge
+    if (booking.service === 'Coupe') color = '#34C759'; // vert
+  }
   
   return {
     id: booking.id || '',
-    title: `${booking.service} - ${booking.name}`,
+    title: booking.name, // Peut être un titre personnel ou "Service - Nom du client"
     description: booking.message || '',
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
     location: booking.address || '',
     color,
-    // Informations additionnelles que vous pouvez stocker dans un champ personnalisé si nécessaire
-    // Par exemple, vous pourriez ajouter un champ "metadata" pour stocker des infos spécifiques à Firestore
-    // metadata: { phone: booking.phone, email: booking.email, status: booking.status }
+    eventType,
+    // Pour les événements professionnels seulement
+    service: eventType === 'professional' ? booking.service : undefined,
+    clientName: eventType === 'professional' ? booking.name.split(' - ')[1] : undefined,
+    clientPhone: eventType === 'professional' ? booking.phone : undefined,
+    clientEmail: eventType === 'professional' ? booking.email : undefined
   };
 };
 
@@ -150,18 +173,37 @@ export const EventsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const endDate = new Date(event.endDate);
       
       // Format pour Firestore
-      const bookingData = {
-        name: event.title.split(' - ')[1] || 'Client',
-        service: event.title.split(' - ')[0] || 'Service',
+      let bookingData: any = {
         date: Timestamp.fromDate(startDate),
         time: `${startDate.getHours()}:${startDate.getMinutes().toString().padStart(2, '0')}`,
         address: event.location || '',
         message: event.description || '',
-        email: '',  // À remplir si disponible
-        phone: '',  // À remplir si disponible
         status: 'confirmed',
-        createdAt: Timestamp.now()
+        createdAt: Timestamp.now(),
+        eventType: event.eventType || 'professional' // Stocker le type d'événement
       };
+      
+      // Données spécifiques selon le type d'événement
+      if (event.eventType === 'professional') {
+        // Pour un événement professionnel, le titre est au format "Service - Client"
+        const titleParts = event.title.split(' - ');
+        bookingData = {
+          ...bookingData,
+          name: event.title, // Titre complet
+          service: event.service || titleParts[0] || 'Service',
+          email: event.clientEmail || '',
+          phone: event.clientPhone || '',
+        };
+      } else {
+        // Pour un événement personnel, le titre est simplement le titre
+        bookingData = {
+          ...bookingData,
+          name: event.title, // Titre direct
+          email: '', // Pas de client pour les événements personnels
+          phone: '',
+          service: 'Personnel', // Marqueur pour les événements personnels
+        };
+      }
       
       const docRef = await addDoc(bookingsCollectionRef, bookingData);
       
@@ -192,12 +234,34 @@ export const EventsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Préparer les données à mettre à jour
       const updateData: any = {};
       
+      // Mise à jour selon le type d'événement
+      if (eventUpdate.eventType) {
+        updateData.eventType = eventUpdate.eventType;
+      }
+      
       if (eventUpdate.title) {
-        const parts = eventUpdate.title.split(' - ');
-        if (parts.length >= 2) {
-          updateData.service = parts[0];
-          updateData.name = parts[1];
+        updateData.name = eventUpdate.title;
+        
+        // Si c'est un événement professionnel, extraire service et client
+        if (eventUpdate.eventType === 'professional' || 
+            (events.find(e => e.id === id)?.eventType === 'professional' && !eventUpdate.eventType)) {
+          const parts = eventUpdate.title.split(' - ');
+          if (parts.length >= 2) {
+            updateData.service = parts[0];
+          }
         }
+      }
+      
+      if (eventUpdate.service) {
+        updateData.service = eventUpdate.service;
+      }
+      
+      if (eventUpdate.clientEmail) {
+        updateData.email = eventUpdate.clientEmail;
+      }
+      
+      if (eventUpdate.clientPhone) {
+        updateData.phone = eventUpdate.clientPhone;
       }
       
       if (eventUpdate.startDate) {

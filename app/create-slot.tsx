@@ -1,9 +1,9 @@
-// app/create-event.tsx
+// app/create-slot.tsx
 import { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useEvents } from '../context/EventsContext';
-import { Calendar, Clock, MapPin, User, Mail, Phone, AlertCircle, CheckCircle } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, User, Mail, Phone, AlertCircle, CheckCircle, Briefcase, Home as HomeIcon } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 
@@ -30,7 +30,10 @@ const COLORS_PALETTE = [
 export default function CreateEventScreen() {
     const { addEvent, loading } = useEvents();
 
-    // Client info
+    // Type d'événement (nouveau)
+    const [eventType, setEventType] = useState<'professional' | 'personal'>('professional');
+
+    // Client info (pour événements professionnels)
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
     const [clientEmail, setClientEmail] = useState('');
@@ -38,8 +41,11 @@ export default function CreateEventScreen() {
 
     // Event details
     const [service, setService] = useState('');
+    const [personalTitle, setPersonalTitle] = useState(''); // Titre pour événements personnels
     const [message, setMessage] = useState('');
-    const [selectedColor, setSelectedColor] = useState(COLORS_PALETTE[4]); // Default blue
+    const [selectedColor, setSelectedColor] = useState(
+        eventType === 'professional' ? COLORS_PALETTE[4] : COLORS_PALETTE[2]
+    );
 
     // Date and time
     const [startDate, setStartDate] = useState(new Date());
@@ -54,42 +60,70 @@ export default function CreateEventScreen() {
     // Error state
     const [error, setError] = useState<string | null>(null);
 
+    // Mettre à jour la couleur par défaut selon le type d'événement
+    const changeEventType = (type: 'professional' | 'personal') => {
+        setEventType(type);
+        // Couleur par défaut selon le type
+        if (type === 'personal') {
+            setSelectedColor(COLORS_PALETTE[2]); // Jaune pour perso
+        } else {
+            setSelectedColor(COLORS_PALETTE[4]); // Bleu pour pro
+        }
+    };
+
     const handleCreateEvent = async () => {
-        if (!clientName) {
-            setError('Le nom du client est obligatoire');
-            return;
-        }
-
-        if (!service) {
-            setError('Veuillez sélectionner un service');
-            return;
-        }
-
+        // Validation commune aux deux types d'événements
         if (endDate < startDate) {
             setError('La date de fin doit être après la date de début');
             return;
         }
 
         try {
-            // Construire le titre selon le format attendu
-            const title = `${service} - ${clientName}`;
-
-            await addEvent({
-                title,
-                description: message,
-                location: clientAddress,
+            let title = '';
+            let eventData: any = {
                 startDate: startDate.toISOString(),
                 endDate: endDate.toISOString(),
                 color: selectedColor,
-            });
+                location: clientAddress,
+                description: message,
+                eventType: eventType // Sauvegarder le type d'événement
+            };
+
+            // Validation et préparation des données spécifiques au type
+            if (eventType === 'professional') {
+                if (!clientName) {
+                    setError('Le nom du client est obligatoire');
+                    return;
+                }
+                if (!service) {
+                    setError('Veuillez sélectionner un service');
+                    return;
+                }
+                title = `${service} - ${clientName}`;
+                eventData.clientName = clientName;
+                eventData.clientPhone = clientPhone;
+                eventData.clientEmail = clientEmail;
+                eventData.service = service;
+            } else {
+                if (!personalTitle) {
+                    setError('Le titre est obligatoire');
+                    return;
+                }
+                title = personalTitle;
+            }
+
+            // Définir le titre final
+            eventData.title = title;
+
+            await addEvent(eventData);
 
             Alert.alert(
                 'Succès',
-                'Le rendez-vous a été créé',
+                `L'événement "${title}" a été créé`,
                 [{ text: 'OK', onPress: () => router.back() }]
             );
         } catch (err) {
-            setError('Erreur lors de la création du rendez-vous');
+            setError('Erreur lors de la création de l\'événement');
         }
     };
 
@@ -187,7 +221,7 @@ export default function CreateEventScreen() {
                     <Text style={styles.closeButtonText}>Annuler</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>Nouveau rendez-vous</Text>
+                <Text style={styles.headerTitle}>Nouvel événement</Text>
             </View>
 
             <ScrollView style={styles.content}>
@@ -198,86 +232,155 @@ export default function CreateEventScreen() {
                     </View>
                 )}
 
+                {/* Sélection du type d'événement */}
                 <View style={styles.formGroup}>
-                    <Text style={styles.sectionTitle}>Informations client</Text>
-
-                    <View style={styles.inputContainer}>
-                        <User size={20} color={COLORS.gray} style={styles.inputIcon} />
-                        <TextInput
-                            style={styles.input}
-                            value={clientName}
-                            onChangeText={setClientName}
-                            placeholder="Nom du client"
-                        />
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <Phone size={20} color={COLORS.gray} style={styles.inputIcon} />
-                        <TextInput
-                            style={styles.input}
-                            value={clientPhone}
-                            onChangeText={setClientPhone}
-                            placeholder="Téléphone"
-                            keyboardType="phone-pad"
-                        />
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <Mail size={20} color={COLORS.gray} style={styles.inputIcon} />
-                        <TextInput
-                            style={styles.input}
-                            value={clientEmail}
-                            onChangeText={setClientEmail}
-                            placeholder="Email"
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                        />
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <MapPin size={20} color={COLORS.gray} style={styles.inputIcon} />
-                        <TextInput
-                            style={styles.input}
-                            value={clientAddress}
-                            onChangeText={setClientAddress}
-                            placeholder="Adresse (optionnel)"
-                        />
+                    <Text style={styles.sectionTitle}>Type d'événement</Text>
+                    <View style={styles.typeSelector}>
+                        <TouchableOpacity
+                            style={[
+                                styles.typeOption,
+                                eventType === 'professional' && styles.typeOptionSelected
+                            ]}
+                            onPress={() => changeEventType('professional')}
+                        >
+                            <Briefcase 
+                                size={24} 
+                                color={eventType === 'professional' ? COLORS.background : COLORS.primary} 
+                            />
+                            <Text style={[
+                                styles.typeOptionText,
+                                eventType === 'professional' && styles.typeOptionTextSelected
+                            ]}>Professionnel</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                            style={[
+                                styles.typeOption,
+                                eventType === 'personal' && styles.typeOptionSelected
+                            ]}
+                            onPress={() => changeEventType('personal')}
+                        >
+                            <HomeIcon 
+                                size={24} 
+                                color={eventType === 'personal' ? COLORS.background : COLORS.primary} 
+                            />
+                            <Text style={[
+                                styles.typeOptionText,
+                                eventType === 'personal' && styles.typeOptionTextSelected
+                            ]}>Personnel</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
-                <View style={styles.formGroup}>
-                    <Text style={styles.sectionTitle}>Service</Text>
+                {/* Formulaire pour événements professionnels */}
+                {eventType === 'professional' ? (
+                    <>
+                        <View style={styles.formGroup}>
+                            <Text style={styles.sectionTitle}>Informations client</Text>
 
-                    <View style={styles.serviceOptions}>
-                        {SERVICES.map((serviceItem) => (
-                            <TouchableOpacity
-                                key={serviceItem.id}
-                                style={[
-                                    styles.serviceOption,
-                                    service === serviceItem.id && {
-                                        backgroundColor: COLORS.primary,
-                                        borderColor: COLORS.primary
-                                    }
-                                ]}
-                                onPress={() => setService(serviceItem.id)}
-                            >
-                                <Text style={[
-                                    styles.serviceOptionText,
-                                    service === serviceItem.id && { color: COLORS.background }
-                                ]}>
-                                    {serviceItem.name}
-                                </Text>
-                                <Text style={[
-                                    styles.serviceOptionPrice,
-                                    service === serviceItem.id && { color: COLORS.background }
-                                ]}>
-                                    {serviceItem.price} €
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                            <View style={styles.inputContainer}>
+                                <User size={20} color={COLORS.gray} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    value={clientName}
+                                    onChangeText={setClientName}
+                                    placeholder="Nom du client"
+                                />
+                            </View>
+
+                            <View style={styles.inputContainer}>
+                                <Phone size={20} color={COLORS.gray} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    value={clientPhone}
+                                    onChangeText={setClientPhone}
+                                    placeholder="Téléphone"
+                                    keyboardType="phone-pad"
+                                />
+                            </View>
+
+                            <View style={styles.inputContainer}>
+                                <Mail size={20} color={COLORS.gray} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    value={clientEmail}
+                                    onChangeText={setClientEmail}
+                                    placeholder="Email"
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                />
+                            </View>
+
+                            <View style={styles.inputContainer}>
+                                <MapPin size={20} color={COLORS.gray} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    value={clientAddress}
+                                    onChangeText={setClientAddress}
+                                    placeholder="Adresse (optionnel)"
+                                />
+                            </View>
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.sectionTitle}>Service</Text>
+
+                            <View style={styles.serviceOptions}>
+                                {SERVICES.map((serviceItem) => (
+                                    <TouchableOpacity
+                                        key={serviceItem.id}
+                                        style={[
+                                            styles.serviceOption,
+                                            service === serviceItem.id && {
+                                                backgroundColor: COLORS.primary,
+                                                borderColor: COLORS.primary
+                                            }
+                                        ]}
+                                        onPress={() => setService(serviceItem.id)}
+                                    >
+                                        <Text style={[
+                                            styles.serviceOptionText,
+                                            service === serviceItem.id && { color: COLORS.background }
+                                        ]}>
+                                            {serviceItem.name}
+                                        </Text>
+                                        <Text style={[
+                                            styles.serviceOptionPrice,
+                                            service === serviceItem.id && { color: COLORS.background }
+                                        ]}>
+                                            {serviceItem.price} €
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    </>
+                ) : (
+                    // Formulaire pour événements personnels
+                    <View style={styles.formGroup}>
+                        <Text style={styles.sectionTitle}>Détails</Text>
+                        <View style={styles.inputContainer}>
+                            <TextInput
+                                style={styles.input}
+                                value={personalTitle}
+                                onChangeText={setPersonalTitle}
+                                placeholder="Titre de l'événement"
+                            />
+                        </View>
+                        
+                        <View style={styles.inputContainer}>
+                            <MapPin size={20} color={COLORS.gray} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.input}
+                                value={clientAddress}
+                                onChangeText={setClientAddress}
+                                placeholder="Lieu (optionnel)"
+                            />
+                        </View>
                     </View>
-                </View>
+                )}
 
+                {/* Sélection de la date et heure - commun aux deux types */}
                 <View style={styles.formGroup}>
                     <Text style={styles.sectionTitle}>Date et heure</Text>
 
@@ -360,6 +463,7 @@ export default function CreateEventScreen() {
                     )}
                 </View>
 
+                {/* Sélection de couleur - commun aux deux types */}
                 <View style={styles.formGroup}>
                     <Text style={styles.sectionTitle}>Couleur</Text>
 
@@ -378,14 +482,15 @@ export default function CreateEventScreen() {
                     </View>
                 </View>
 
+                {/* Notes - commun aux deux types */}
                 <View style={styles.formGroup}>
-                    <Text style={styles.sectionTitle}>Message / Notes</Text>
+                    <Text style={styles.sectionTitle}>Notes</Text>
 
                     <TextInput
                         style={styles.messageInput}
                         value={message}
                         onChangeText={setMessage}
-                        placeholder="Ajouter des notes ou informations supplémentaires"
+                        placeholder="Informations supplémentaires"
                         multiline
                         numberOfLines={4}
                     />
@@ -404,7 +509,11 @@ export default function CreateEventScreen() {
                     ) : (
                         <>
                             <CheckCircle size={20} color={COLORS.background} />
-                            <Text style={styles.createButtonText}>Créer le créneau</Text>
+                            <Text style={styles.createButtonText}>
+                                {eventType === 'professional' 
+                                    ? 'Créer le rendez-vous' 
+                                    : 'Créer l\'événement'}
+                            </Text>
                         </>
                     )}
                 </TouchableOpacity>
@@ -462,6 +571,7 @@ const styles = StyleSheet.create({
     serviceOptions: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        justifyContent: 'space-between', // Pour espacer uniformément les éléments
         marginBottom: 16,
     },
     serviceOption: {
@@ -469,10 +579,11 @@ const styles = StyleSheet.create({
         borderColor: COLORS.veryLightGray,
         borderRadius: 12,
         padding: 12,
-        marginRight: 8,
         marginBottom: 8,
-        minWidth: '48%',
+        flexBasis: '48%', // Définit la largeur à environ la moitié de l'écran
+        alignItems: 'center', // Centre le texte dans les blocs
     },
+    
     serviceOptionText: {
         fontSize: SIZES.body,
         fontWeight: '600',
@@ -518,7 +629,8 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     dateTimeContainer: {
-        marginBottom: 16,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
     },
     dateTimeButton: {
         flexDirection: 'row',
@@ -528,6 +640,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 12,
         marginBottom: 8,
+        flex: 0.48,
     },
     dateTimeText: {
         marginLeft: 8,
@@ -541,6 +654,8 @@ const styles = StyleSheet.create({
         borderColor: COLORS.veryLightGray,
         borderRadius: 12,
         paddingHorizontal: 12,
+        marginBottom: 16,
+        height: 50,
     },
     inputIcon: {
         marginRight: 8,
@@ -549,15 +664,6 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 50,
         fontSize: SIZES.body,
-    },
-    notesInput: {
-        borderWidth: 1,
-        borderColor: COLORS.veryLightGray,
-        borderRadius: 12,
-        padding: 12,
-        fontSize: SIZES.body,
-        minHeight: 100,
-        textAlignVertical: 'top',
     },
     buttonContainer: {
         padding: 16,
@@ -639,5 +745,31 @@ const styles = StyleSheet.create({
         height: 120,
         textAlignVertical: 'top',
         fontSize: 16,
+      },
+      typeSelector: {
+        flexDirection: 'row',
+        marginBottom: 16,
+      },
+      typeOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.primary,
+        borderRadius: 12,
+        padding: 12,
+        marginRight: 12,
+        flex: 1,
+      },
+      typeOptionSelected: {
+        backgroundColor: COLORS.primary,
+      },
+      typeOptionText: {
+        color: COLORS.primary,
+        fontWeight: '600',
+        marginLeft: 8,
+      },
+      typeOptionTextSelected: {
+        color: COLORS.background,
       },
 });

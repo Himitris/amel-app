@@ -5,7 +5,7 @@ import { Calendar as CalendarComponent, DateData } from 'react-native-calendars'
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { router } from 'expo-router';
-import { Clock, MapPin, CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Clock, MapPin, CalendarIcon, ChevronLeft, ChevronRight, Briefcase, HomeIcon } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
 import { useEvents } from '../../context/EventsContext'; // Maintenant nous utilisons useEvents au lieu de useSlots
@@ -17,24 +17,32 @@ export default function MonthScreen() {
   const [markedDates, setMarkedDates] = useState({});
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(format(new Date(), 'MMMM yyyy', { locale: fr }));
-  
+
   const { events, loading, refreshEvents } = useEvents();
-  
+
   useEffect(() => {
     if (events) {
       const marked = {};
       events.forEach(event => {
         const eventDate = new Date(event.startDate).toISOString().split('T')[0];
-        
-        // Définir les couleurs en fonction du service (extrait du titre)
+
+        // Définir les couleurs en fonction du type d'événement (professionnel ou personnel)
         let dotColor = COLORS.primary;
-        const title = event.title.toLowerCase();
-        
-        if (title.includes('coloration')) dotColor = '#FF9500';
-        if (title.includes('coupe')) dotColor = '#34C759';
-        if (title.includes('coiffage')) dotColor = '#5856D6';
-        if (title.includes('soin')) dotColor = '#FF2D55';
-        
+
+        if (event.eventType === 'personal') {
+          // Événement personnel - utiliser la couleur jaune/orange
+          dotColor = '#FFCC00';
+        } else {
+          // Événement professionnel - utiliser la couleur selon le service
+          const title = event.title.toLowerCase();
+          const service = event.service ? event.service.toLowerCase() : '';
+
+          if (title.includes('coloration') || service.includes('coloration')) dotColor = '#FF9500';
+          if (title.includes('coupe') || service.includes('coupe')) dotColor = '#34C759';
+          if (title.includes('coiffage') || service.includes('coiffage')) dotColor = '#5856D6';
+          if (title.includes('soin') || service.includes('soin')) dotColor = '#FF2D55';
+        }
+
         if (marked[eventDate]) {
           marked[eventDate].dots.push({ color: dotColor });
         } else {
@@ -43,14 +51,14 @@ export default function MonthScreen() {
           };
         }
       });
-      
+
       // Add selected date marker
       marked[selectedDate] = {
         ...marked[selectedDate],
         selected: true,
         selectedColor: COLORS.primary,
       };
-      
+
       setMarkedDates(marked);
     }
   }, [events, selectedDate]);
@@ -58,7 +66,7 @@ export default function MonthScreen() {
   const onDayPress = (day: DateData) => {
     setSelectedDate(day.dateString);
   };
-  
+
   const onMonthChange = (month: DateData) => {
     setCurrentMonth(format(new Date(month.dateString), 'MMMM yyyy', { locale: fr }));
   };
@@ -73,23 +81,27 @@ export default function MonthScreen() {
   }, [refreshEvents]);
 
   // Filtrer les événements pour la date sélectionnée
-  const filteredEvents = events.filter(event => 
+  const filteredEvents = events.filter(event =>
     new Date(event.startDate).toISOString().split('T')[0] === selectedDate
-  ).sort((a, b) => 
+  ).sort((a, b) =>
     new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
   );
 
   const renderEvent = ({ item, index }) => {
     const startTime = format(new Date(item.startDate), 'HH:mm');
     const endTime = format(new Date(item.endDate), 'HH:mm');
-    
+    const isPersonal = item.eventType === 'personal';
+
     return (
       <Animated.View
-        style={[styles.eventCard, { borderLeftColor: item.color || COLORS.primary }]}
+        style={[
+          styles.eventCard,
+          { borderLeftColor: item.color || (isPersonal ? COLORS.secondary : COLORS.primary) }
+        ]}
         entering={FadeIn.delay(index * 100).springify()}
         layout={Layout.springify()}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.eventCardInner}
           onPress={() => router.push({ pathname: '/event-details', params: { id: item.id } })}
         >
@@ -98,10 +110,22 @@ export default function MonthScreen() {
             <Text style={styles.eventTimeSeparator}>—</Text>
             <Text style={styles.eventTime}>{endTime}</Text>
           </View>
-          
+
           <View style={styles.eventContent}>
-            <Text style={styles.eventTitle}>{item.title}</Text>
-            
+            <View style={styles.eventTitleWrapper}>
+              {/* Indicateur du type d'événement */}
+              {isPersonal ? (
+                <View style={[styles.eventTypeIndicator, { backgroundColor: COLORS.secondary }]}>
+                  <HomeIcon size={12} color={COLORS.background} />
+                </View>
+              ) : (
+                <View style={[styles.eventTypeIndicator, { backgroundColor: COLORS.primary }]}>
+                  <Briefcase size={12} color={COLORS.background} />
+                </View>
+              )}
+              <Text style={styles.eventTitle}>{item.title}</Text>
+            </View>
+
             {item.location ? (
               <View style={styles.eventDetail}>
                 <MapPin size={14} color={COLORS.gray} />
@@ -115,7 +139,7 @@ export default function MonthScreen() {
   };
 
   const ListEmptyComponent = () => (
-    <Animated.View 
+    <Animated.View
       style={styles.noEventsContainer}
       entering={FadeIn.delay(300)}
       exiting={FadeOut}
@@ -126,7 +150,7 @@ export default function MonthScreen() {
   );
 
   const ListHeaderComponent = () => (
-    <Animated.View 
+    <Animated.View
       style={styles.calendarHeader}
       entering={FadeIn}
       layout={Layout.springify()}
@@ -143,7 +167,7 @@ export default function MonthScreen() {
       <View style={styles.monthHeader}>
         <Text style={styles.monthTitle}>{currentMonth}</Text>
       </View>
-      
+
       <CalendarComponent
         current={selectedDate}
         onDayPress={onDayPress}
@@ -168,12 +192,12 @@ export default function MonthScreen() {
           textDayHeaderFontFamily: FONTS.medium.fontFamily,
         }}
         renderArrow={(direction) => (
-          direction === 'left' 
-            ? <ChevronLeft size={20} color={COLORS.primary} /> 
+          direction === 'left'
+            ? <ChevronLeft size={20} color={COLORS.primary} />
             : <ChevronRight size={20} color={COLORS.primary} />
         )}
       />
-      
+
       <View style={styles.eventsContainer}>
         {loading && !refreshing && events.length === 0 ? (
           <View style={styles.loadingContainer}>
@@ -187,10 +211,10 @@ export default function MonthScreen() {
             keyExtractor={item => item.id || item.startDate}
             contentContainerStyle={styles.eventsList}
             refreshControl={
-              <RefreshControl 
-                refreshing={refreshing} 
+              <RefreshControl
+                refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={[COLORS.primary]} 
+                colors={[COLORS.primary]}
                 tintColor={COLORS.primary}
               />
             }
@@ -328,4 +352,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.background,
   },
+  eventTitleWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  eventTypeIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  }
 });

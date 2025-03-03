@@ -5,7 +5,7 @@ import { format, isToday, isTomorrow, isThisWeek, isThisMonth, parseISO } from '
 import { fr } from 'date-fns/locale';
 import { useEvents } from '../../context/EventsContext';
 import { router } from 'expo-router';
-import { Clock, MapPin, CalendarIcon } from 'lucide-react-native';
+import { Clock, MapPin, CalendarIcon, Scissors } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 
 export default function AgendaScreen() {
@@ -69,9 +69,13 @@ export default function AgendaScreen() {
     const endTime = format(new Date(item.endDate), 'HH:mm');
     const eventDate = format(new Date(item.startDate), 'EEEE d MMMM', { locale: fr });
     
+    // Déterminer les éléments visuels selon le type d'événement
+    const isPersonal = item.eventType === 'personal';
+    const eventColor = item.color || (isPersonal ? COLORS.secondary : COLORS.primary);
+    
     return (
       <TouchableOpacity 
-        style={[styles.eventCard, { borderLeftColor: item.color || COLORS.primary }]}
+        style={[styles.eventCard, { borderLeftColor: eventColor }]}
         onPress={() => router.push({ pathname: '/event-details', params: { id: item.id } })}
       >
         <View style={styles.eventTimeContainer}>
@@ -81,7 +85,20 @@ export default function AgendaScreen() {
         </View>
         
         <View style={styles.eventContent}>
-          <Text style={styles.eventTitle}>{item.title}</Text>
+          <View style={styles.eventTitleContainer}>
+            {isPersonal ? (
+              // Icône pour événement personnel
+              <View style={[styles.eventTypeIndicator, { backgroundColor: COLORS.secondary }]}>
+                <HomeIcon size={12} color="#FFFFFF" />
+              </View>
+            ) : (
+              // Icône pour événement professionnel
+              <View style={[styles.eventTypeIndicator, { backgroundColor: COLORS.primary }]}>
+                <Briefcase size={12} color="#FFFFFF" />
+              </View>
+            )}
+            <Text style={styles.eventTitle}>{item.title}</Text>
+          </View>
           
           {item.description ? (
             <Text style={styles.eventDescription} numberOfLines={2}>
@@ -101,6 +118,14 @@ export default function AgendaScreen() {
               <Clock size={14} color="#8E8E93" />
               <Text style={styles.eventDetailText}>{eventDate}</Text>
             </View>
+            
+            {/* Afficher les informations spécifiques aux événements professionnels */}
+            {!isPersonal && item.service && (
+              <View style={styles.eventDetailItem}>
+                <Scissors size={14} color="#8E8E93" />
+                <Text style={styles.eventDetailText}>{item.service}</Text>
+              </View>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -265,5 +290,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E8E93',
     marginLeft: 4,
+  },
+  eventTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  eventTypeIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
 });

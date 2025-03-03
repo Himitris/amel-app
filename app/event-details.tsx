@@ -1,11 +1,11 @@
-// app/event-details.tsx
+// app/event-details.tsx - mise à jour
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useEvents } from '../context/EventsContext';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Calendar, Clock, MapPin, Phone, Mail, Trash2, Edit, ArrowLeft } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Phone, Mail, Trash2, Edit, ArrowLeft, Briefcase, Home as HomeIcon, Scissors } from 'lucide-react-native';
 import { COLORS, SHADOWS } from '../constants/theme';
 
 export default function EventDetailsScreen() {
@@ -20,14 +20,21 @@ export default function EventDetailsScreen() {
       if (eventData) {
         setEvent(eventData);
         
-        // Extraire les informations client du titre
-        // Format attendu: "Service - Nom du client"
-        const parts = eventData.title.split(' - ');
-        if (parts.length >= 2) {
-          setClientInfo({
-            name: parts[1],
-            service: parts[0]
-          });
+        // Extraire les informations client pour les événements professionnels
+        if (eventData.eventType === 'professional') {
+          // Format attendu: "Service - Nom du client"
+          const parts = eventData.title.split(' - ');
+          if (parts.length >= 2) {
+            setClientInfo({
+              name: parts[1],
+              service: parts[0]
+            });
+          } else {
+            setClientInfo({
+              name: eventData.clientName || '',
+              service: eventData.service || ''
+            });
+          }
         }
       }
     }
@@ -35,8 +42,8 @@ export default function EventDetailsScreen() {
 
   const handleDelete = () => {
     Alert.alert(
-      'Supprimer le rendez-vous',
-      'Êtes-vous sûr de vouloir supprimer ce rendez-vous ?',
+      'Supprimer l\'événement',
+      'Êtes-vous sûr de vouloir supprimer cet événement ?',
       [
         {
           text: 'Annuler',
@@ -50,7 +57,7 @@ export default function EventDetailsScreen() {
               await deleteEvent(id.toString());
               router.back();
             } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer le rendez-vous');
+              Alert.alert('Erreur', 'Impossible de supprimer l\'événement');
             }
           },
         },
@@ -84,10 +91,10 @@ export default function EventDetailsScreen() {
           >
             <ArrowLeft size={24} color={COLORS.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Rendez-vous non trouvé</Text>
+          <Text style={styles.headerTitle}>Événement non trouvé</Text>
         </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Le rendez-vous demandé n'existe pas ou a été supprimé.</Text>
+          <Text style={styles.errorText}>L'événement demandé n'existe pas ou a été supprimé.</Text>
           <TouchableOpacity
             style={styles.backHomeButton}
             onPress={() => router.push('/(tabs)')}
@@ -99,6 +106,7 @@ export default function EventDetailsScreen() {
     );
   }
 
+  const isPersonal = event.eventType === 'personal';
   const startDate = parseISO(event.startDate);
   const endDate = parseISO(event.endDate);
   
@@ -120,7 +128,9 @@ export default function EventDetailsScreen() {
           <ArrowLeft size={24} color={COLORS.primary} />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>Détails du rendez-vous</Text>
+        <Text style={styles.headerTitle}>
+          {isPersonal ? "Événement personnel" : "Rendez-vous client"}
+        </Text>
         
         <View style={styles.headerActions}>
           <TouchableOpacity 
@@ -142,18 +152,59 @@ export default function EventDetailsScreen() {
       <ScrollView style={styles.content}>
         <View style={[styles.colorBadge, { backgroundColor: event.color || COLORS.primary }]} />
         
-        <View style={styles.serviceContainer}>
-          <Text style={styles.serviceLabel}>Service</Text>
-          <Text style={styles.serviceText}>{clientInfo?.service || 'Service non spécifié'}</Text>
+        {/* Type d'événement */}
+        <View style={styles.typeContainer}>
+          {isPersonal ? (
+            <View style={[styles.typeIndicator, { backgroundColor: COLORS.secondary }]}>
+              <HomeIcon size={20} color={COLORS.background} />
+              <Text style={styles.typeText}>Personnel</Text>
+            </View>
+          ) : (
+            <View style={[styles.typeIndicator, { backgroundColor: COLORS.primary }]}>
+              <Briefcase size={20} color={COLORS.background} />
+              <Text style={styles.typeText}>Professionnel</Text>
+            </View>
+          )}
         </View>
         
-        {clientInfo?.name && (
-          <View style={styles.clientContainer}>
-            <Text style={styles.clientLabel}>Client</Text>
-            <Text style={styles.clientName}>{clientInfo.name}</Text>
+        {/* Titre / Service */}
+        {isPersonal ? (
+          // Affichage pour événement personnel
+          <View style={styles.titleContainer}>
+            <Text style={styles.titleLabel}>Titre</Text>
+            <Text style={styles.titleText}>{event.title}</Text>
+          </View>
+        ) : (
+          // Affichage pour événement professionnel (service)
+          <View style={styles.serviceContainer}>
+            <Text style={styles.serviceLabel}>Service</Text>
+            <Text style={styles.serviceText}>{clientInfo?.service || 'Service non spécifié'}</Text>
           </View>
         )}
         
+        {/* Informations client pour événements professionnels uniquement */}
+        {!isPersonal && clientInfo?.name && (
+          <View style={styles.clientContainer}>
+            <Text style={styles.clientLabel}>Client</Text>
+            <Text style={styles.clientName}>{clientInfo.name}</Text>
+            
+            {event.clientPhone && (
+              <View style={styles.clientContactItem}>
+                <Phone size={16} color={COLORS.gray} />
+                <Text style={styles.clientContactText}>{event.clientPhone}</Text>
+              </View>
+            )}
+            
+            {event.clientEmail && (
+              <View style={styles.clientContactItem}>
+                <Mail size={16} color={COLORS.gray} />
+                <Text style={styles.clientContactText}>{event.clientEmail}</Text>
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* Description commune aux deux types */}
         {event.description ? (
           <Text style={styles.description}>{event.description}</Text>
         ) : null}
@@ -268,6 +319,35 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 16,
   },
+  typeContainer: {
+    alignItems: 'flex-start', 
+    marginBottom: 16
+  },
+  typeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  typeText: {
+    color: COLORS.background,
+    fontWeight: '600',
+    marginLeft: 6
+  },
+  titleContainer: {
+    marginBottom: 16,
+  },
+  titleLabel: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginBottom: 4,
+  },
+  titleText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: COLORS.dark,
+  },
   serviceContainer: {
     marginBottom: 16,
   },
@@ -283,6 +363,9 @@ const styles = StyleSheet.create({
   },
   clientContainer: {
     marginBottom: 16,
+    padding: 12,
+    backgroundColor: COLORS.accent + '30',
+    borderRadius: 8,
   },
   clientLabel: {
     fontSize: 14,
@@ -293,6 +376,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.dark,
+    marginBottom: 8,
+  },
+  clientContactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  clientContactText: {
+    fontSize: 14,
+    color: COLORS.darkGray,
+    marginLeft: 8,
   },
   description: {
     fontSize: 16,
