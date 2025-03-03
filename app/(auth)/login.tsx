@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react-native';
@@ -8,7 +8,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const { signIn, signInWithGoogle, loading } = useAuth();
+  const { signIn, loading } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -21,15 +21,6 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (err) {
       setError('Email ou mot de passe incorrect');
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithGoogle();
-      router.replace('/(tabs)');
-    } catch (err) {
-      setError('Erreur lors de la connexion avec Google');
     }
   };
 
@@ -90,25 +81,8 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        {Platform.OS !== 'web' && (
-          <TouchableOpacity 
-            style={styles.googleButton} 
-            onPress={handleGoogleLogin}
-            disabled={loading}
-          >
-            <Image 
-              source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg' }} 
-              style={styles.googleIcon} 
-            />
-            <Text style={styles.googleButtonText}>Continuer avec Google</Text>
-          </TouchableOpacity>
-        )}
-
         <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>Vous n'avez pas de compte ?</Text>
-          <TouchableOpacity onPress={() => router.push('/register')}>
-            <Text style={styles.registerLink}>S'inscrire</Text>
-          </TouchableOpacity>
+          <Text style={styles.registerText}>Contactez l'administrateur pour obtenir un accès</Text>
         </View>
       </View>
     </View>
@@ -196,27 +170,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
-  },
-  googleButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
   },
   registerContainer: {
     flexDirection: 'row',

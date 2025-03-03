@@ -4,7 +4,7 @@ export default function AuthLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
+      {/* Route d'inscription supprimée - accessible uniquement par l'admin */}
     </Stack>
   );
 }

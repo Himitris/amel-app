@@ -1,9 +1,9 @@
 // app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { Calendar, Clock, Scissors, User, Settings } from 'lucide-react-native';
+import { Calendar, Clock, Scissors, User } from 'lucide-react-native';
 import { TouchableOpacity, StyleSheet, View } from 'react-native';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { router } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { COLORS, SHADOWS } from '../../constants/theme';
@@ -11,22 +11,35 @@ import { COLORS, SHADOWS } from '../../constants/theme';
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 export default function TabLayout() {
+  // Tous les hooks doivent être appelés au tout début du composant
   const { user, initialized } = useAuth();
   
-  // Animation values for the add button
+  // Animation values
   const addButtonScale = useSharedValue(1);
   const addButtonRotation = useSharedValue(0);
+  
+  // On déclare les refs avant les conditions
+  const navigationRef = useRef(null);
+  const extraRef = useRef(null); // Ajout d'un useRef supplémentaire au cas où
 
+  // On déclare tous les styles animés en avance, même s'ils ne sont pas utilisés
+  const addButtonAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { scale: addButtonScale.value },
+        { rotate: `${addButtonRotation.value * 45}deg` }
+      ]
+    };
+  });
+  
+  // Tous les effets sont définis au début, avant toute condition de retour
   useEffect(() => {
     if (initialized && !user) {
       router.replace('/(auth)/login');
     }
   }, [user, initialized]);
-
-  if (!initialized || !user) {
-    return null;
-  }
   
+  // Définir la fonction de gestion du clic sur le bouton d'ajout
   const handleAddPress = () => {
     // Animate the button
     addButtonScale.value = withSpring(0.8, {}, () => {
@@ -40,15 +53,11 @@ export default function TabLayout() {
     // Navigate to create screen
     router.push('/create-slot');
   };
-  
-  const addButtonAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { scale: addButtonScale.value },
-        { rotate: `${addButtonRotation.value * 45}deg` }
-      ]
-    };
-  });
+
+  // Maintenant on peut mettre les conditions de retour
+  if (!initialized || !user) {
+    return null;
+  }
 
   return (
     <Tabs
@@ -122,7 +131,6 @@ export default function TabLayout() {
           headerTitle: 'Rendez-vous',
         }}
       />
-      {/* Assurez-vous que vous avez un fichier profile.tsx dans le dossier (tabs) */}
       <Tabs.Screen
         name="profile"
         options={{

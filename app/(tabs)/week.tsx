@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   todayText: {
-    color: '#007AFF',
+    color: '#000000',
   },
   headerContainer: {
     paddingHorizontal: 16,

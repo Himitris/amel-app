@@ -1,7 +1,14 @@
 // context/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut as firebaseSignOut,
+  updateProfile 
+} from 'firebase/auth';
+import { auth } from '../services/firebase';
 
 // Define types for our context
 type User = {
@@ -17,7 +24,6 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
 };
 
 // Create the context with a default value
@@ -28,7 +34,6 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
-  signInWithGoogle: async () => {},
 });
 
 // Custom hook to use the auth context
@@ -47,14 +52,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkUser = async () => {
       try {
-        // Récupérer l'utilisateur stocké dans AsyncStorage
-        const storedUser = await AsyncStorage.getItem(USER_STORAGE_KEY);
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
+        // Vérifier si un utilisateur est connecté dans Firebase
+        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+          if (firebaseUser) {
+            const userData: User = {
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              name: firebaseUser.displayName || '',
+            };
+            setUser(userData);
+            
+            // Stocker l'utilisateur dans AsyncStorage pour la persistance
+            await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
+          } else {
+            // Vérifier s'il y a des données stockées localement
+            const storedUser = await AsyncStorage.getItem(USER_STORAGE_KEY);
+            if (storedUser) {
+              setUser(JSON.parse(storedUser));
+            }
+          }
+          setInitialized(true);
+        });
+        
+        return () => unsubscribe();
       } catch (error) {
         console.error('Failed to get stored user:', error);
-      } finally {
         setInitialized(true);
       }
     };
@@ -66,25 +88,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Simuler une validation de connexion
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Connexion avec Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
       
-      // Simuler une validation simple
-      if (password.length < 6) {
-        throw new Error('Invalid credentials');
-      }
-      
-      // Créer un utilisateur mock
-      const mockUser = {
-        id: 'user-' + Date.now(),
-        email,
-        name: email.split('@')[0],
+      // Créer un objet utilisateur
+      const userData: User = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        name: firebaseUser.displayName || '',
       };
       
-      setUser(mockUser);
+      setUser(userData);
       
       // Stocker l'utilisateur dans AsyncStorage
-      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -97,25 +115,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
-      // Simuler un délai d'inscription
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Inscription avec Firebase
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
       
-      // Simuler une validation simple
-      if (password.length < 6) {
-        throw new Error('Password must be at least 6 characters');
-      }
+      // Mettre à jour le profil avec le nom
+      await updateProfile(firebaseUser, { displayName: name });
       
-      // Créer un utilisateur mock
-      const mockUser = {
-        id: 'user-' + Date.now(),
-        email,
-        name,
+      // Créer un objet utilisateur
+      const userData: User = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        name: name,
       };
       
-      setUser(mockUser);
+      setUser(userData);
       
       // Stocker l'utilisateur dans AsyncStorage
-      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
     } catch (error) {
       console.error('Sign up error:', error);
       throw error;
@@ -128,8 +145,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setLoading(true);
     try {
-      // Simuler un délai de déconnexion
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Déconnexion avec Firebase
+      await firebaseSignOut(auth);
       
       setUser(null);
       
@@ -137,36 +154,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
     } catch (error) {
       console.error('Sign out error:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Sign in with Google
-  const signInWithGoogle = async () => {
-    setLoading(true);
-    try {
-      // Simuler un délai de connexion
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      if (Platform.OS !== 'web') {
-        Alert.alert('Information', 'Cette fonctionnalité serait normalement implémentée avec Expo Auth Session');
-      }
-      
-      // Créer un utilisateur mock
-      const mockUser = {
-        id: 'google-' + Date.now(),
-        email: 'user' + Math.floor(Math.random() * 1000) + '@gmail.com',
-        name: 'Utilisateur Google',
-      };
-      
-      setUser(mockUser);
-      
-      // Stocker l'utilisateur dans AsyncStorage
-      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
-    } catch (error) {
-      console.error('Google sign in error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -181,7 +168,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
-    signInWithGoogle,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,27 +1,42 @@
+// app/event-details.tsx
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useEvents } from '../context/EventsContext';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Calendar, Clock, MapPin, Users, Bell, Trash2, CreditCard as Edit, ArrowLeft } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Phone, Mail, Trash2, Edit, ArrowLeft } from 'lucide-react-native';
+import { COLORS, SHADOWS } from '../constants/theme';
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams();
-  const { getEventById, deleteEvent } = useEvents();
+  const { getEventById, deleteEvent, loading } = useEvents();
   const [event, setEvent] = useState(null);
+  const [clientInfo, setClientInfo] = useState(null);
 
   useEffect(() => {
     if (id) {
       const eventData = getEventById(id.toString());
-      setEvent(eventData);
+      if (eventData) {
+        setEvent(eventData);
+        
+        // Extraire les informations client du titre
+        // Format attendu: "Service - Nom du client"
+        const parts = eventData.title.split(' - ');
+        if (parts.length >= 2) {
+          setClientInfo({
+            name: parts[1],
+            service: parts[0]
+          });
+        }
+      }
     }
   }, [id, getEventById]);
 
   const handleDelete = () => {
     Alert.alert(
-      'Supprimer l\'événement',
-      'Êtes-vous sûr de vouloir supprimer cet événement ?',
+      'Supprimer le rendez-vous',
+      'Êtes-vous sûr de vouloir supprimer ce rendez-vous ?',
       [
         {
           text: 'Annuler',
@@ -35,7 +50,7 @@ export default function EventDetailsScreen() {
               await deleteEvent(id.toString());
               router.back();
             } catch (error) {
-              Alert.alert('Erreur', 'Impossible de supprimer l\'événement');
+              Alert.alert('Erreur', 'Impossible de supprimer le rendez-vous');
             }
           },
         },
@@ -50,10 +65,36 @@ export default function EventDetailsScreen() {
     });
   };
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Chargement...</Text>
+      </View>
+    );
+  }
+
   if (!event) {
     return (
       <View style={styles.container}>
-        <Text>Événement non trouvé</Text>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Rendez-vous non trouvé</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Le rendez-vous demandé n'existe pas ou a été supprimé.</Text>
+          <TouchableOpacity
+            style={styles.backHomeButton}
+            onPress={() => router.push('/(tabs)')}
+          >
+            <Text style={styles.backHomeButtonText}>Retour à l'accueil</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -76,30 +117,42 @@ export default function EventDetailsScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <ArrowLeft size={24} color="#007AFF" />
+          <ArrowLeft size={24} color={COLORS.primary} />
         </TouchableOpacity>
+        
+        <Text style={styles.headerTitle}>Détails du rendez-vous</Text>
         
         <View style={styles.headerActions}>
           <TouchableOpacity 
             style={styles.editButton}
             onPress={handleEdit}
           >
-            <Edit size={20} color="#007AFF" />
+            <Edit size={20} color={COLORS.primary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.deleteButton}
             onPress={handleDelete}
           >
-            <Trash2 size={20} color="#FF3B30" />
+            <Trash2 size={20} color={COLORS.error} />
           </TouchableOpacity>
         </View>
       </View>
       
       <ScrollView style={styles.content}>
-        <View style={[styles.colorBadge, { backgroundColor: event.color || '#007AFF' }]} />
+        <View style={[styles.colorBadge, { backgroundColor: event.color || COLORS.primary }]} />
         
-        <Text style={styles.title}>{event.title}</Text>
+        <View style={styles.serviceContainer}>
+          <Text style={styles.serviceLabel}>Service</Text>
+          <Text style={styles.serviceText}>{clientInfo?.service || 'Service non spécifié'}</Text>
+        </View>
+        
+        {clientInfo?.name && (
+          <View style={styles.clientContainer}>
+            <Text style={styles.clientLabel}>Client</Text>
+            <Text style={styles.clientName}>{clientInfo.name}</Text>
+          </View>
+        )}
         
         {event.description ? (
           <Text style={styles.description}>{event.description}</Text>
@@ -107,7 +160,7 @@ export default function EventDetailsScreen() {
         
         <View style={styles.detailsContainer}>
           <View style={styles.detailItem}>
-            <Calendar size={20} color="#8E8E93" style={styles.detailIcon} />
+            <Calendar size={20} color={COLORS.gray} style={styles.detailIcon} />
             <View>
               <Text style={styles.detailLabel}>Date</Text>
               <Text style={styles.detailText}>{formatDate(startDate)}</Text>
@@ -115,7 +168,7 @@ export default function EventDetailsScreen() {
           </View>
           
           <View style={styles.detailItem}>
-            <Clock size={20} color="#8E8E93" style={styles.detailIcon} />
+            <Clock size={20} color={COLORS.gray} style={styles.detailIcon} />
             <View>
               <Text style={styles.detailLabel}>Heure</Text>
               <Text style={styles.detailText}>
@@ -126,34 +179,10 @@ export default function EventDetailsScreen() {
           
           {event.location ? (
             <View style={styles.detailItem}>
-              <MapPin size={20} color="#8E8E93" style={styles.detailIcon} />
+              <MapPin size={20} color={COLORS.gray} style={styles.detailIcon} />
               <View>
                 <Text style={styles.detailLabel}>Lieu</Text>
                 <Text style={styles.detailText}>{event.location}</Text>
-              </View>
-            </View>
-          ) : null}
-          
-          {event.participants && event.participants.length > 0 ? (
-            <View style={styles.detailItem}>
-              <Users size={20} color="#8E8E93" style={styles.detailIcon} />
-              <View>
-                <Text style={styles.detailLabel}>Participants</Text>
-                <Text style={styles.detailText}>
-                  {event.participants.length} participant{event.participants.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-          
-          {event.reminder ? (
-            <View style={styles.detailItem}>
-              <Bell size={20} color="#8E8E93" style={styles.detailIcon} />
-              <View>
-                <Text style={styles.detailLabel}>Rappel</Text>
-                <Text style={styles.detailText}>
-                  {event.reminderTime === 60 ? '1 heure' : `${event.reminderTime} minutes`} avant
-                </Text>
               </View>
             </View>
           ) : null}
@@ -166,17 +195,56 @@ export default function EventDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.gray,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: COLORS.gray,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  backHomeButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+  },
+  backHomeButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    paddingTop: 50,
+    paddingBottom: 16,
+    backgroundColor: COLORS.background,
+    ...SHADOWS.small,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.dark,
+    flex: 1,
+    textAlign: 'center',
   },
   backButton: {
     padding: 8,
@@ -186,7 +254,7 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 8,
-    marginRight: 16,
+    marginRight: 8,
   },
   deleteButton: {
     padding: 8,
@@ -200,15 +268,35 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 16,
   },
-  title: {
-    fontSize: 24,
+  serviceContainer: {
+    marginBottom: 16,
+  },
+  serviceLabel: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginBottom: 4,
+  },
+  serviceText: {
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    color: COLORS.dark,
+  },
+  clientContainer: {
+    marginBottom: 16,
+  },
+  clientLabel: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginBottom: 4,
+  },
+  clientName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.dark,
   },
   description: {
     fontSize: 16,
-    color: '#3A3A3C',
+    color: COLORS.darkGray,
     marginBottom: 24,
     lineHeight: 24,
   },
@@ -225,11 +313,11 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.gray,
     marginBottom: 4,
   },
   detailText: {
     fontSize: 16,
-    color: '#1C1C1E',
+    color: COLORS.dark,
   },
 });
