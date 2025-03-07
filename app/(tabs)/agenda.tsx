@@ -5,11 +5,12 @@ import { format, isToday, isTomorrow, isThisWeek, isThisMonth, parseISO } from '
 import { fr } from 'date-fns/locale';
 import { useEvents } from '../../context/EventsContext';
 import { router } from 'expo-router';
-import { Clock, MapPin, CalendarIcon, Scissors } from 'lucide-react-native';
+import { Clock, MapPin, CalendarIcon, Scissors, Briefcase, HomeIcon } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
+import { Event } from '../../context/EventsContext';
 
 export default function AgendaScreen() {
-  const [sections, setSections] = useState([]);
+  const [sections, setSections] = useState<{ title: string; data: Event[] }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const { events, loading, refreshEvents } = useEvents();
 
@@ -20,11 +21,11 @@ export default function AgendaScreen() {
   }, [events]);
 
   const organizeSectionsByDate = () => {
-    const today = [];
-    const tomorrow = [];
-    const thisWeek = [];
-    const thisMonth = [];
-    const later = [];
+    const today: Event[] = [];
+    const tomorrow: Event[] = [];
+    const thisWeek: Event[] = [];
+    const thisMonth: Event[] = [];
+    const later: Event[] = [];
 
     events.forEach(event => {
       const eventDate = parseISO(event.startDate);
@@ -42,7 +43,7 @@ export default function AgendaScreen() {
       }
     });
 
-    const sortByDate = (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+    const sortByDate = (a: { startDate: string | number | Date; }, b: { startDate: string | number | Date; }) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
     
     const newSections = [
       { title: 'Aujourd\'hui', data: today.sort(sortByDate) },
@@ -64,7 +65,7 @@ export default function AgendaScreen() {
     }
   }, [refreshEvents]);
 
-  const renderEvent = ({ item }) => {
+  const renderEvent = ({ item }: { item: Event }) => {
     const startTime = format(new Date(item.startDate), 'HH:mm');
     const endTime = format(new Date(item.endDate), 'HH:mm');
     const eventDate = format(new Date(item.startDate), 'EEEE d MMMM', { locale: fr });
@@ -132,7 +133,7 @@ export default function AgendaScreen() {
     );
   };
 
-  const renderSectionHeader = ({ section }) => (
+  const renderSectionHeader = ({ section }: { section: { title: string; data: Event[] } }) => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{section.title}</Text>
     </View>

@@ -6,6 +6,8 @@ import { useEvents } from '../context/EventsContext';
 import { Calendar, Clock, MapPin, User, Mail, Phone, AlertCircle, CheckCircle, Briefcase, Home as HomeIcon } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
+import SimplifiedDurationPicker from '../components/SimplifiedDurationPicker';
+import { getNextRoundHour, calculateEndTime, formatTimeToHHMM } from './utils/dateUtils';
 
 const SERVICES = [
     { id: 'Coupe', name: 'Coupe', price: 35 },
@@ -30,7 +32,7 @@ const COLORS_PALETTE = [
 export default function CreateEventScreen() {
     const { addEvent, loading } = useEvents();
 
-    // Type d'événement (nouveau)
+    // Type d'événement
     const [eventType, setEventType] = useState<'professional' | 'personal'>('professional');
 
     // Client info (pour événements professionnels)
@@ -47,15 +49,14 @@ export default function CreateEventScreen() {
         eventType === 'professional' ? COLORS_PALETTE[4] : COLORS_PALETTE[2]
     );
 
-    // Date and time
-    const [startDate, setStartDate] = useState(new Date());
-    const [endDate, setEndDate] = useState(new Date(new Date().setHours(new Date().getHours() + 1)));
+    // Date et heure avec le nouveau système
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [startTime, setStartTime] = useState(getNextRoundHour()); // Heure ronde suivante
+    const [duration, setDuration] = useState(60); // Durée par défaut de 60 minutes
 
     // Date picker states
-    const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-    const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-    const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-    const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
 
     // Error state
     const [error, setError] = useState<string | null>(null);
@@ -72,21 +73,23 @@ export default function CreateEventScreen() {
     };
 
     const handleCreateEvent = async () => {
-        // Validation commune aux deux types d'événements
-        if (endDate < startDate) {
-            setError('La date de fin doit être après la date de début');
-            return;
-        }
-
         try {
             let title = '';
+            
+            // Construction de la date de début en combinant selectedDate et startTime
+            const startDate = new Date(selectedDate);
+            startDate.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
+            
+            // Calcul de la date de fin en ajoutant la durée
+            const endDate = calculateEndTime(startDate, duration);
+            
             let eventData: any = {
                 startDate: startDate.toISOString(),
                 endDate: endDate.toISOString(),
                 color: selectedColor,
                 location: clientAddress,
                 description: message,
-                eventType: eventType // Sauvegarder le type d'événement
+                eventType: eventType
             };
 
             // Validation et préparation des données spécifiques au type
@@ -131,84 +134,16 @@ export default function CreateEventScreen() {
         return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
     };
 
-    const formatTime = (date: Date) => {
-        return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const onDateChange = (event: any, selectedDate?: Date) => {
+        const currentDate = selectedDate || new Date();
+        setShowDatePicker(Platform.OS === 'ios');
+        setSelectedDate(currentDate);
     };
 
-    const onStartDateChange = (event: any, selectedDate?: Date) => {
-        const currentDate = selectedDate || startDate;
-        setShowStartDatePicker(Platform.OS === 'ios');
-        setShowStartTimePicker(Platform.OS === 'ios');
-
-        // Keep the time from the previous startDate
-        const newDate = new Date(currentDate);
-        newDate.setHours(startDate.getHours(), startDate.getMinutes());
-
-        setStartDate(newDate);
-
-        // If end date is before start date, update it
-        if (endDate < newDate) {
-            const newEndDate = new Date(newDate);
-            newEndDate.setHours(newDate.getHours() + 1);
-            setEndDate(newEndDate);
-        }
-    };
-
-    const onStartTimeChange = (event: any, selectedTime?: Date) => {
-        const currentTime = selectedTime || startDate;
-        setShowStartTimePicker(Platform.OS === 'ios');
-
-        // Keep the date from the previous startDate
-        const newDate = new Date(startDate);
-        newDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-
-        setStartDate(newDate);
-
-        // If end time is before start time on the same day, update it
-        if (endDate.getDate() === newDate.getDate() &&
-            endDate.getMonth() === newDate.getMonth() &&
-            endDate.getFullYear() === newDate.getFullYear() &&
-            endDate < newDate) {
-            const newEndDate = new Date(newDate);
-            newEndDate.setHours(newDate.getHours() + 1);
-            setEndDate(newEndDate);
-        }
-    };
-
-    const onEndDateChange = (event: any, selectedDate?: Date) => {
-        const currentDate = selectedDate || endDate;
-        setShowEndDatePicker(Platform.OS === 'ios');
-        setShowEndTimePicker(Platform.OS === 'ios');
-
-        // Keep the time from the previous endDate
-        const newDate = new Date(currentDate);
-        newDate.setHours(endDate.getHours(), endDate.getMinutes());
-
-        // If end date is before start date, don't update
-        if (newDate < startDate) {
-            return;
-        }
-
-        setEndDate(newDate);
-    };
-
-    const onEndTimeChange = (event: any, selectedTime?: Date) => {
-        const currentTime = selectedTime || endDate;
-        setShowEndTimePicker(Platform.OS === 'ios');
-
-        // Keep the date from the previous endDate
-        const newDate = new Date(endDate);
-        newDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-
-        // If end time is before start time on the same day, don't update
-        if (newDate.getDate() === startDate.getDate() &&
-            newDate.getMonth() === startDate.getMonth() &&
-            newDate.getFullYear() === startDate.getFullYear() &&
-            newDate < startDate) {
-            return;
-        }
-
-        setEndDate(newDate);
+    const onTimeChange = (event: any, selectedTime?: Date) => {
+        const currentTime = selectedTime || startTime;
+        setShowTimePicker(Platform.OS === 'ios');
+        setStartTime(currentTime);
     };
 
     return (
@@ -380,85 +315,58 @@ export default function CreateEventScreen() {
                     </View>
                 )}
 
-                {/* Sélection de la date et heure - commun aux deux types */}
+                {/* NOUVEAU : Sélection de la date */}
                 <View style={styles.formGroup}>
                     <Text style={styles.sectionTitle}>Date et heure</Text>
 
-                    <View>
-                        <Text style={styles.inputLabel}>Début</Text>
-                        <View style={styles.dateTimeContainer}>
-                            <TouchableOpacity
-                                style={styles.dateTimeButton}
-                                onPress={() => setShowStartDatePicker(true)}
-                            >
-                                <Calendar size={20} color={COLORS.gray} />
-                                <Text style={styles.dateTimeText}>{formatDate(startDate)}</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.dateTimeButton}
-                                onPress={() => setShowStartTimePicker(true)}
-                            >
-                                <Clock size={20} color={COLORS.gray} />
-                                <Text style={styles.dateTimeText}>{formatTime(startDate)}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
+                    {/* Sélection de la date */}
                     <View style={styles.formSpacing}>
-                        <Text style={styles.inputLabel}>Fin</Text>
-                        <View style={styles.dateTimeContainer}>
-                            <TouchableOpacity
-                                style={styles.dateTimeButton}
-                                onPress={() => setShowEndDatePicker(true)}
-                            >
-                                <Calendar size={20} color={COLORS.gray} />
-                                <Text style={styles.dateTimeText}>{formatDate(endDate)}</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.dateTimeButton}
-                                onPress={() => setShowEndTimePicker(true)}
-                            >
-                                <Clock size={20} color={COLORS.gray} />
-                                <Text style={styles.dateTimeText}>{formatTime(endDate)}</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <Text style={styles.inputLabel}>Date</Text>
+                        <TouchableOpacity
+                            style={styles.dateTimeButton}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <Calendar size={20} color={COLORS.gray} />
+                            <Text style={styles.dateTimeText}>{formatDate(selectedDate)}</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {showStartDatePicker && (
+                    {/* Sélection de l'heure de début */}
+                    <View style={styles.formSpacing}>
+                        <Text style={styles.inputLabel}>Heure de début</Text>
+                        <TouchableOpacity
+                            style={styles.dateTimeButton}
+                            onPress={() => setShowTimePicker(true)}
+                        >
+                            <Clock size={20} color={COLORS.gray} />
+                            <Text style={styles.dateTimeText}>{formatTimeToHHMM(startTime)}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* NOUVEAU : Sélection de la durée */}
+                    <View style={styles.formSpacing}>
+                        <SimplifiedDurationPicker
+                            selectedDuration={duration}
+                            onSelect={setDuration}
+                        />
+                    </View>
+
+                    {showDatePicker && (
                         <DateTimePicker
-                            value={startDate}
+                            value={selectedDate}
                             mode="date"
                             display="default"
-                            onChange={onStartDateChange}
+                            onChange={onDateChange}
                         />
                     )}
 
-                    {showStartTimePicker && (
+                    {showTimePicker && (
                         <DateTimePicker
-                            value={startDate}
+                            value={startTime}
                             mode="time"
                             display="default"
-                            onChange={onStartTimeChange}
-                        />
-                    )}
-
-                    {showEndDatePicker && (
-                        <DateTimePicker
-                            value={endDate}
-                            mode="date"
-                            display="default"
-                            onChange={onEndDateChange}
-                        />
-                    )}
-
-                    {showEndTimePicker && (
-                        <DateTimePicker
-                            value={endDate}
-                            mode="time"
-                            display="default"
-                            onChange={onEndTimeChange}
+                            minuteInterval={15} // Intervalles de 15 minutes
+                            onChange={onTimeChange}
                         />
                     )}
                 </View>
@@ -496,6 +404,13 @@ export default function CreateEventScreen() {
                     />
                 </View>
             </ScrollView>
+
+            {/* Ajout d'un résumé du créneau */}
+            <View style={styles.summaryContainer}>
+                <Text style={styles.summaryText}>
+                    {formatDate(selectedDate)} à {formatTimeToHHMM(startTime)} • Durée: {duration} min
+                </Text>
+            </View>
 
             {/* Bouton de création */}
             <View style={styles.buttonContainer}>
@@ -620,9 +535,6 @@ const styles = StyleSheet.create({
         color: COLORS.gray,
         marginLeft: 8,
     },
-    dateTimeSection: {
-        marginBottom: 8,
-    },
     dateTimeLabel: {
         fontSize: SIZES.caption,
         color: COLORS.gray,
@@ -640,7 +552,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 12,
         marginBottom: 8,
-        flex: 0.48,
     },
     dateTimeText: {
         marginLeft: 8,
@@ -771,5 +682,18 @@ const styles = StyleSheet.create({
       },
       typeOptionTextSelected: {
         color: COLORS.background,
+      },
+      // Styles pour le résumé
+      summaryContainer: {
+        padding: 12,
+        backgroundColor: COLORS.accent + '30',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: COLORS.veryLightGray,
+      },
+      summaryText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: COLORS.primary,
       },
 });

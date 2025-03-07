@@ -5,7 +5,7 @@ import { collection, query, getDocs, doc, addDoc, updateDoc, deleteDoc, Timestam
 import { db } from '../services/firebase';
 
 // Define types for our context
-type Event = {
+export type Event = {
   id: string;
   title: string;
   description?: string;
