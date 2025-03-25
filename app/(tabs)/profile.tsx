@@ -1,45 +1,47 @@
 // app/(tabs)/profile.tsx
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  ScrollView
-} from 'react-native';
-import { useAuth } from '../../context/AuthContext';
-import { 
-  User, 
-  Settings, 
-  LogOut, 
-  Mail, 
-  Lock, 
-  Phone, 
-  Home, 
-  Check, 
-  X, 
-  Edit, 
-  Shield
-} from 'lucide-react-native';
-import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
-import { 
-  updatePassword as firebaseUpdatePassword, 
-  reauthenticateWithCredential, 
+import {
   EmailAuthProvider,
   updateEmail as firebaseUpdateEmail,
-  updateProfile as firebaseUpdateProfile
+  updatePassword as firebaseUpdatePassword,
+  updateProfile as firebaseUpdateProfile,
+  reauthenticateWithCredential
 } from 'firebase/auth';
-import { auth } from '../../services/firebase';
-import { Timestamp, collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { Timestamp, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  Check,
+  Edit,
+  Home,
+  Lock,
+  LogOut,
+  Mail,
+  Phone,
+  Shield,
+  Trash2,
+  User,
+  X
+} from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { COLORS, SHADOWS, SIZES } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+import { useEvents } from '../../context/EventsContext';
+import { auth, db } from '../../services/firebase';
 
 export default function ProfileScreen() {
   const { user, signOut, updateUserProfile } = useAuth();
+  const { deletePassedEvents, loading: eventsLoading } = useEvents(); // Ajouter cette ligne
   const [loading, setLoading] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false); // Nouvel état pour le chargement du nettoyage
   const [userData, setUserData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -47,7 +49,7 @@ export default function ProfileScreen() {
     address: '',
   });
   const [extended, setExtended] = useState(false);
-  
+
   // État pour les modals
   const [modalVisible, setModalVisible] = useState({
     name: false,
@@ -56,7 +58,7 @@ export default function ProfileScreen() {
     address: false,
     password: false,
   });
-  
+
   // État pour les entrées de formulaire
   const [formInputs, setFormInputs] = useState({
     name: '',
@@ -67,7 +69,7 @@ export default function ProfileScreen() {
     newPassword: '',
     confirmPassword: '',
   });
-  
+
   // Chargement des données utilisateur supplémentaires depuis Firestore
   useEffect(() => {
     const fetchUserData = async () => {
@@ -76,7 +78,7 @@ export default function ProfileScreen() {
           setLoading(true);
           const userDocRef = doc(db, 'users', user.id);
           const userDoc = await getDoc(userDocRef);
-          
+
           if (userDoc.exists()) {
             const data = userDoc.data();
             setUserData(prevData => ({
@@ -102,9 +104,50 @@ export default function ProfileScreen() {
         }
       }
     };
-    
+
     fetchUserData();
   }, [user]);
+
+  const handleCleanupEvents = async () => {
+    Alert.alert(
+      'Nettoyage des rendez-vous',
+      'Êtes-vous sûr de vouloir supprimer tous les rendez-vous passés ? Cette action est irréversible.',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCleanupLoading(true);
+              const deletedCount = await deletePassedEvents();
+
+              // Afficher un message de succès
+              if (deletedCount > 0) {
+                Alert.alert(
+                  'Nettoyage terminé',
+                  `${deletedCount} rendez-vous passés ont été supprimés avec succès.`
+                );
+              } else {
+                Alert.alert(
+                  'Information',
+                  'Aucun rendez-vous passé à supprimer.'
+                );
+              }
+            } catch (error) {
+              console.error('Erreur lors du nettoyage des rendez-vous:', error);
+              Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression des rendez-vous passés.');
+            } finally {
+              setCleanupLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const handleLogout = async () => {
     try {
@@ -114,7 +157,7 @@ export default function ProfileScreen() {
       Alert.alert('Erreur', 'Impossible de se déconnecter');
     }
   };
-  
+
   // Ouverture d'un modal
   const openModal = (type) => {
     // Réinitialiser les entrées de formulaire avec les valeurs actuelles
@@ -122,35 +165,35 @@ export default function ProfileScreen() {
       ...formInputs,
       [type]: userData[type],
     });
-    
+
     setModalVisible({
-      ...Object.keys(modalVisible).reduce((acc, key) => ({...acc, [key]: false}), {}),
+      ...Object.keys(modalVisible).reduce((acc, key) => ({ ...acc, [key]: false }), {}),
       [type]: true
     });
   };
-  
+
   // Fermeture de tous les modals
   const closeAllModals = () => {
-    setModalVisible(Object.keys(modalVisible).reduce((acc, key) => ({...acc, [key]: false}), {}));
+    setModalVisible(Object.keys(modalVisible).reduce((acc, key) => ({ ...acc, [key]: false }), {}));
   };
-  
+
   // Mise à jour du nom
   const updateName = async () => {
     if (!formInputs.name.trim()) {
       Alert.alert('Erreur', 'Le nom ne peut pas être vide');
       return;
     }
-    
+
     try {
       setLoading(true);
-      
+
       // Mettre à jour le profil Firebase Auth
       if (auth.currentUser) {
         await firebaseUpdateProfile(auth.currentUser, {
           displayName: formInputs.name,
         });
       }
-      
+
       // Mettre à jour Firestore
       if (user?.id) {
         const userDocRef = doc(db, 'users', user.id);
@@ -159,18 +202,18 @@ export default function ProfileScreen() {
           updatedAt: Timestamp.now(),
         });
       }
-      
+
       // Mettre à jour l'état local
       setUserData({
         ...userData,
         name: formInputs.name,
       });
-      
+
       // Mettre à jour l'état global utilisateur
       updateUserProfile({
         name: formInputs.name,
       });
-      
+
       Alert.alert('Succès', 'Nom mis à jour avec succès');
       closeAllModals();
     } catch (error) {
@@ -180,17 +223,17 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   };
-  
+
   // Mise à jour de l'email
   const updateEmail = async () => {
     if (!formInputs.email.trim() || !formInputs.currentPassword) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs');
       return;
     }
-    
+
     try {
       setLoading(true);
-      
+
       // Réauthentifier l'utilisateur
       if (auth.currentUser && auth.currentUser.email) {
         const credential = EmailAuthProvider.credential(
@@ -198,10 +241,10 @@ export default function ProfileScreen() {
           formInputs.currentPassword
         );
         await reauthenticateWithCredential(auth.currentUser, credential);
-        
+
         // Mettre à jour l'email dans Firebase Auth
         await firebaseUpdateEmail(auth.currentUser, formInputs.email);
-        
+
         // Mettre à jour Firestore
         if (user?.id) {
           const userDocRef = doc(db, 'users', user.id);
@@ -210,24 +253,24 @@ export default function ProfileScreen() {
             updatedAt: Timestamp.now(),
           });
         }
-        
+
         // Mettre à jour l'état local
         setUserData({
           ...userData,
           email: formInputs.email,
         });
-        
+
         // Mettre à jour l'état global utilisateur
         updateUserProfile({
           email: formInputs.email,
         });
-        
+
         Alert.alert('Succès', 'Email mis à jour avec succès');
         closeAllModals();
       }
     } catch (error) {
       console.error('Erreur lors de la mise à jour de l\'email:', error);
-      
+
       // Messages d'erreur plus spécifiques
       if (error.code === 'auth/wrong-password') {
         Alert.alert('Erreur', 'Mot de passe incorrect');
@@ -240,27 +283,27 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   };
-  
+
   // Mise à jour du mot de passe
   const updatePassword = async () => {
     if (!formInputs.currentPassword || !formInputs.newPassword || !formInputs.confirmPassword) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs');
       return;
     }
-    
+
     if (formInputs.newPassword !== formInputs.confirmPassword) {
       Alert.alert('Erreur', 'Les nouveaux mots de passe ne correspondent pas');
       return;
     }
-    
+
     if (formInputs.newPassword.length < 8) {
       Alert.alert('Erreur', 'Le nouveau mot de passe doit contenir au moins 8 caractères');
       return;
     }
-    
+
     try {
       setLoading(true);
-      
+
       // Réauthentifier l'utilisateur
       if (auth.currentUser && auth.currentUser.email) {
         const credential = EmailAuthProvider.credential(
@@ -268,16 +311,16 @@ export default function ProfileScreen() {
           formInputs.currentPassword
         );
         await reauthenticateWithCredential(auth.currentUser, credential);
-        
+
         // Mettre à jour le mot de passe
         await firebaseUpdatePassword(auth.currentUser, formInputs.newPassword);
-        
+
         Alert.alert('Succès', 'Mot de passe mis à jour avec succès');
         closeAllModals();
       }
     } catch (error) {
       console.error('Erreur lors de la mise à jour du mot de passe:', error);
-      
+
       if (error.code === 'auth/wrong-password') {
         Alert.alert('Erreur', 'Mot de passe actuel incorrect');
       } else {
@@ -287,12 +330,12 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   };
-  
+
   // Mise à jour du téléphone
   const updatePhone = async () => {
     try {
       setLoading(true);
-      
+
       if (user?.id) {
         const userDocRef = doc(db, 'users', user.id);
         await updateDoc(userDocRef, {
@@ -300,12 +343,12 @@ export default function ProfileScreen() {
           updatedAt: Timestamp.now(),
         });
       }
-      
+
       setUserData({
         ...userData,
         phone: formInputs.phone,
       });
-      
+
       Alert.alert('Succès', 'Numéro de téléphone mis à jour avec succès');
       closeAllModals();
     } catch (error) {
@@ -315,12 +358,12 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   };
-  
+
   // Mise à jour de l'adresse
   const updateAddress = async () => {
     try {
       setLoading(true);
-      
+
       if (user?.id) {
         const userDocRef = doc(db, 'users', user.id);
         await updateDoc(userDocRef, {
@@ -328,12 +371,12 @@ export default function ProfileScreen() {
           updatedAt: Timestamp.now(),
         });
       }
-      
+
       setUserData({
         ...userData,
         address: formInputs.address,
       });
-      
+
       Alert.alert('Succès', 'Adresse mise à jour avec succès');
       closeAllModals();
     } catch (error) {
@@ -351,7 +394,7 @@ export default function ProfileScreen() {
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       )}
-      
+
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
           <User size={60} color={COLORS.primary} />
@@ -362,7 +405,7 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Informations personnelles</Text>
-        
+
         <TouchableOpacity style={styles.option} onPress={() => openModal('name')}>
           <View style={styles.optionIcon}>
             <User size={20} color={COLORS.primary} />
@@ -373,7 +416,7 @@ export default function ProfileScreen() {
           </View>
           <Edit size={18} color={COLORS.gray} />
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.option} onPress={() => openModal('email')}>
           <View style={styles.optionIcon}>
             <Mail size={20} color={COLORS.primary} />
@@ -384,7 +427,7 @@ export default function ProfileScreen() {
           </View>
           <Edit size={18} color={COLORS.gray} />
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.option} onPress={() => openModal('phone')}>
           <View style={styles.optionIcon}>
             <Phone size={20} color={COLORS.primary} />
@@ -395,7 +438,7 @@ export default function ProfileScreen() {
           </View>
           <Edit size={18} color={COLORS.gray} />
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.option} onPress={() => openModal('address')}>
           <View style={styles.optionIcon}>
             <Home size={20} color={COLORS.primary} />
@@ -407,10 +450,10 @@ export default function ProfileScreen() {
           <Edit size={18} color={COLORS.gray} />
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Sécurité</Text>
-        
+
         <TouchableOpacity style={styles.option} onPress={() => openModal('password')}>
           <View style={styles.optionIcon}>
             <Lock size={20} color={COLORS.primary} />
@@ -422,15 +465,38 @@ export default function ProfileScreen() {
           <Edit size={18} color={COLORS.gray} />
         </TouchableOpacity>
       </View>
-      
-      <TouchableOpacity 
-        style={styles.logoutButton} 
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Maintenance</Text>
+
+        <TouchableOpacity
+          style={[styles.maintenanceButton, cleanupLoading && styles.disabledButton]}
+          onPress={handleCleanupEvents}
+          disabled={cleanupLoading || eventsLoading}
+        >
+          {cleanupLoading ? (
+            <ActivityIndicator color={COLORS.background} />
+          ) : (
+            <>
+              <Trash2 size={20} color={COLORS.background} style={styles.maintenanceButtonIcon} />
+              <Text style={styles.maintenanceButtonText}>Nettoyer les rendez-vous passés</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <Text style={styles.maintenanceDescription}>
+          Cette action supprimera définitivement tous les rendez-vous terminés avant aujourd'hui.
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.logoutButton}
         onPress={handleLogout}
       >
         <LogOut size={20} color={COLORS.error} style={styles.logoutIcon} />
         <Text style={styles.logoutText}>Déconnexion</Text>
       </TouchableOpacity>
-      
+
       {/* Modal pour modifier le nom */}
       <Modal
         visible={modalVisible.name}
@@ -440,24 +506,24 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Modifier le nom</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Nouveau nom"
               value={formInputs.name}
-              onChangeText={(text) => setFormInputs({...formInputs, name: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, name: text })}
             />
-            
+
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={closeAllModals}
               >
                 <X size={18} color={COLORS.gray} />
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={updateName}
               >
@@ -468,7 +534,7 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-      
+
       {/* Modal pour modifier l'email */}
       <Modal
         visible={modalVisible.email}
@@ -478,41 +544,41 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Modifier l'email</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Nouvel email"
               value={formInputs.email}
-              onChangeText={(text) => setFormInputs({...formInputs, email: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, email: text })}
               keyboardType="email-address"
               autoCapitalize="none"
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Mot de passe actuel"
               value={formInputs.currentPassword}
-              onChangeText={(text) => setFormInputs({...formInputs, currentPassword: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, currentPassword: text })}
               secureTextEntry
             />
-            
+
             <View style={styles.securityNote}>
               <Shield size={16} color={COLORS.warning} />
               <Text style={styles.securityNoteText}>
                 Pour des raisons de sécurité, nous avons besoin de votre mot de passe actuel
               </Text>
             </View>
-            
+
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={closeAllModals}
               >
                 <X size={18} color={COLORS.gray} />
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={updateEmail}
               >
@@ -523,7 +589,7 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-      
+
       {/* Modal pour modifier le mot de passe */}
       <Modal
         visible={modalVisible.password}
@@ -533,48 +599,48 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Modifier le mot de passe</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Mot de passe actuel"
               value={formInputs.currentPassword}
-              onChangeText={(text) => setFormInputs({...formInputs, currentPassword: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, currentPassword: text })}
               secureTextEntry
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Nouveau mot de passe"
               value={formInputs.newPassword}
-              onChangeText={(text) => setFormInputs({...formInputs, newPassword: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, newPassword: text })}
               secureTextEntry
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Confirmer le mot de passe"
               value={formInputs.confirmPassword}
-              onChangeText={(text) => setFormInputs({...formInputs, confirmPassword: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, confirmPassword: text })}
               secureTextEntry
             />
-            
+
             <View style={styles.securityNote}>
               <Shield size={16} color={COLORS.warning} />
               <Text style={styles.securityNoteText}>
                 Votre mot de passe doit contenir au moins 8 caractères
               </Text>
             </View>
-            
+
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={closeAllModals}
               >
                 <X size={18} color={COLORS.gray} />
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={updatePassword}
               >
@@ -585,7 +651,7 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-      
+
       {/* Modal pour modifier le téléphone */}
       <Modal
         visible={modalVisible.phone}
@@ -595,25 +661,25 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Modifier le téléphone</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Nouveau numéro de téléphone"
               value={formInputs.phone}
-              onChangeText={(text) => setFormInputs({...formInputs, phone: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, phone: text })}
               keyboardType="phone-pad"
             />
-            
+
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={closeAllModals}
               >
                 <X size={18} color={COLORS.gray} />
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={updatePhone}
               >
@@ -624,7 +690,7 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-      
+
       {/* Modal pour modifier l'adresse */}
       <Modal
         visible={modalVisible.address}
@@ -634,26 +700,26 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Modifier l'adresse</Text>
-            
+
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Nouvelle adresse"
               value={formInputs.address}
-              onChangeText={(text) => setFormInputs({...formInputs, address: text})}
+              onChangeText={(text) => setFormInputs({ ...formInputs, address: text })}
               multiline
               numberOfLines={3}
             />
-            
+
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={closeAllModals}
               >
                 <X size={18} color={COLORS.gray} />
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={updateAddress}
               >
@@ -763,7 +829,7 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontWeight: '600',
   },
-  
+
   // Modal styles
   modalOverlay: {
     flex: 1,
@@ -842,5 +908,33 @@ const styles = StyleSheet.create({
     color: COLORS.background,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  maintenanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.error,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    ...SHADOWS.small,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  maintenanceButtonIcon: {
+    marginRight: 8,
+  },
+  maintenanceButtonText: {
+    color: COLORS.background,
+    fontSize: SIZES.body,
+    fontWeight: '600',
+  },
+  maintenanceDescription: {
+    fontSize: SIZES.caption,
+    color: COLORS.gray,
+    textAlign: 'center',
+    marginBottom: 16,
   },
 });

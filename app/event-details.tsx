@@ -1,12 +1,12 @@
 // app/event-details.tsx - mise à jour
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useEvents } from '../context/EventsContext';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Calendar, Clock, MapPin, Phone, Mail, Trash2, Edit, ArrowLeft, Briefcase, Home as HomeIcon, Scissors } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, Briefcase, Calendar, Clock, Edit, Home as HomeIcon, Mail, MapPin, Phone, Trash2 } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, SHADOWS } from '../constants/theme';
+import { useEvents } from '../context/EventsContext';
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -19,7 +19,7 @@ export default function EventDetailsScreen() {
       const eventData = getEventById(id.toString());
       if (eventData) {
         setEvent(eventData);
-        
+
         // Extraire les informations client pour les événements professionnels
         if (eventData.eventType === 'professional') {
           // Format attendu: "Service - Nom du client"
@@ -85,7 +85,7 @@ export default function EventDetailsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
@@ -109,11 +109,11 @@ export default function EventDetailsScreen() {
   const isPersonal = event.eventType === 'personal';
   const startDate = parseISO(event.startDate);
   const endDate = parseISO(event.endDate);
-  
+
   const formatDate = (date) => {
     return format(date, 'EEEE d MMMM yyyy', { locale: fr });
   };
-  
+
   const formatTime = (date) => {
     return format(date, 'HH:mm', { locale: fr });
   };
@@ -121,26 +121,26 @@ export default function EventDetailsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
           <ArrowLeft size={24} color={COLORS.primary} />
         </TouchableOpacity>
-        
+
         <Text style={styles.headerTitle}>
           {isPersonal ? "Événement personnel" : "Rendez-vous client"}
         </Text>
-        
+
         <View style={styles.headerActions}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.editButton}
             onPress={handleEdit}
           >
             <Edit size={20} color={COLORS.primary} />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.deleteButton}
             onPress={handleDelete}
           >
@@ -148,10 +148,10 @@ export default function EventDetailsScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       <ScrollView style={styles.content}>
         <View style={[styles.colorBadge, { backgroundColor: event.color || COLORS.primary }]} />
-        
+
         {/* Type d'événement */}
         <View style={styles.typeContainer}>
           {isPersonal ? (
@@ -166,7 +166,7 @@ export default function EventDetailsScreen() {
             </View>
           )}
         </View>
-        
+
         {/* Titre / Service */}
         {isPersonal ? (
           // Affichage pour événement personnel
@@ -181,20 +181,20 @@ export default function EventDetailsScreen() {
             <Text style={styles.serviceText}>{clientInfo?.service || 'Service non spécifié'}</Text>
           </View>
         )}
-        
+
         {/* Informations client pour événements professionnels uniquement */}
         {!isPersonal && clientInfo?.name && (
           <View style={styles.clientContainer}>
             <Text style={styles.clientLabel}>Client</Text>
             <Text style={styles.clientName}>{clientInfo.name}</Text>
-            
+
             {event.clientPhone && (
               <View style={styles.clientContactItem}>
                 <Phone size={16} color={COLORS.gray} />
                 <Text style={styles.clientContactText}>{event.clientPhone}</Text>
               </View>
             )}
-            
+
             {event.clientEmail && (
               <View style={styles.clientContactItem}>
                 <Mail size={16} color={COLORS.gray} />
@@ -203,12 +203,12 @@ export default function EventDetailsScreen() {
             )}
           </View>
         )}
-        
+
         {/* Description commune aux deux types */}
         {event.description ? (
           <Text style={styles.description}>{event.description}</Text>
         ) : null}
-        
+
         <View style={styles.detailsContainer}>
           <View style={styles.detailItem}>
             <Calendar size={20} color={COLORS.gray} style={styles.detailIcon} />
@@ -217,7 +217,7 @@ export default function EventDetailsScreen() {
               <Text style={styles.detailText}>{formatDate(startDate)}</Text>
             </View>
           </View>
-          
+
           <View style={styles.detailItem}>
             <Clock size={20} color={COLORS.gray} style={styles.detailIcon} />
             <View>
@@ -227,7 +227,7 @@ export default function EventDetailsScreen() {
               </Text>
             </View>
           </View>
-          
+
           {event.location ? (
             <View style={styles.detailItem}>
               <MapPin size={20} color={COLORS.gray} style={styles.detailIcon} />
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   typeContainer: {
-    alignItems: 'flex-start', 
+    alignItems: 'flex-start',
     marginBottom: 16
   },
   typeIndicator: {

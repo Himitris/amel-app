@@ -2,6 +2,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { getSlotsByDateRange, getAvailableSlots, bookSlot, cancelSlot, createSlot, Slot } from '../services/slotsService';
 import { startOfMonth, endOfMonth, addMonths } from 'date-fns';
+import { auth } from '@/services/firebase';
 
 // Define types for our context
 type SlotsContextType = {
@@ -59,11 +60,22 @@ export const SlotsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLoading(true);
     setError(null);
     try {
+      // Vérifier si l'utilisateur est connecté
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log("Aucun utilisateur connecté - impossibilité de charger les créneaux");
+        setSlots([]); // Réinitialiser les slots si non connecté
+        return;
+      }
+  
       const slotsData = await getSlotsByDateRange(startDate, endDate);
       setSlots(slotsData);
     } catch (err) {
       console.error('Failed to load slots:', err);
-      setError('Erreur lors du chargement des créneaux');
+      // Ne pas afficher d'erreur pour les problèmes de permissions
+      if (err.code !== 'permission-denied') {
+        setError('Erreur lors du chargement des créneaux');
+      }
     } finally {
       setLoading(false);
     }

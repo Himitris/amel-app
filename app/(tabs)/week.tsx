@@ -1,7 +1,7 @@
 // app/(tabs)/week.tsx
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { format, addDays, startOfWeek, isSameDay, isToday } from 'date-fns';
+import { format, addDays, isSameDay, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useEvents } from '../../context/EventsContext';
 import { router } from 'expo-router';
@@ -11,7 +11,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { COLORS, SHADOWS } from '../../constants/theme';
 
 export default function WeekScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -24,7 +24,6 @@ export default function WeekScreen() {
     const loadEvents = async () => {
       try {
         await refreshEvents();
-        console.log("Événements actualisés!");
       } catch (error) {
         console.error("Erreur lors de l'actualisation des événements:", error);
       }
@@ -63,10 +62,61 @@ export default function WeekScreen() {
     }
   }, []); // Dépendance vide pour n'exécuter qu'au montage initial
 
+  // Fonction pour vérifier si un jour a des événements
+  const hasEvents = (date) => {
+    const dateString = format(date, 'yyyy-MM-dd');
+    return events.some(event => {
+      const eventDate = new Date(event.startDate).toISOString().split('T')[0];
+      return eventDate === dateString;
+    });
+  };
+
+  // Fonction pour créer les boutons de jour
+  const renderDayButton = (day, index) => {
+    const isSelected = isSameDay(day, selectedDate);
+    const isCurrentDay = isToday(day);
+    const dayName = format(day, 'EEE', { locale: fr });
+    const dayNumber = format(day, 'd');
+    const dayHasEvents = hasEvents(day);
+
+    return (
+      <TouchableOpacity
+        key={index}
+        style={[
+          styles.dayButton,
+          isSelected && styles.selectedDayButton,
+          isCurrentDay && styles.todayButton,
+        ]}
+        onPress={() => selectDay(day)}
+      >
+        <Text style={[
+          styles.dayName,
+          isSelected && styles.selectedDayText,
+          isCurrentDay && styles.todayText,
+        ]}>
+          {dayName}
+        </Text>
+        <Text style={[
+          styles.dayNumber,
+          isSelected && styles.selectedDayText,
+          isCurrentDay && styles.todayText,
+        ]}>
+          {dayNumber}
+        </Text>
+
+        {/* Indicateur d'événement */}
+        {dayHasEvents && (
+          <View style={[
+            styles.eventIndicator,
+            isSelected && styles.selectedEventIndicator
+          ]} />
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   const selectDay = (date) => {
-    console.log("Jour sélectionné:", date.toISOString());
     setSelectedDate(date);
-    // Le défilement sera automatiquement déclenché par l'effet qui surveille selectedDate
   };
 
   // Fonction pour réinitialiser la vue de la semaine à aujourd'hui
@@ -150,21 +200,17 @@ export default function WeekScreen() {
     return {
       top: adjustedStartHour * 60,
       height: duration * 60,
-      backgroundColor: event.color || '#007AFF',
+      backgroundColor: event.color || (event.eventType === 'personal' ? '#FFCC00' : COLORS.primary),
     };
   };
 
   const renderEvents = () => {
-    // Assurons-nous que tous les événements sont bien récupérés
-    console.log("Tous les événements disponibles:", events.length);
-
+    // Filtrer les événements du jour sélectionné
     const dayEvents = events.filter(event => {
       const eventDate = new Date(event.startDate);
       const isMatchingDay = isSameDay(eventDate, selectedDate);
       return isMatchingDay;
     });
-
-    console.log("Événements pour le jour sélectionné:", dayEvents.length, "Date sélectionnée:", selectedDate.toISOString());
 
     if (dayEvents.length === 0) {
       // Optionnellement, ajouter un message "Aucun événement"
@@ -227,39 +273,7 @@ export default function WeekScreen() {
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.weekDaysContainer}>
-        {weekDays.map((day, index) => {
-          const isSelected = isSameDay(day, selectedDate);
-          const isCurrentDay = isToday(day);
-          const dayName = format(day, 'EEE', { locale: fr });
-          const dayNumber = format(day, 'd');
-
-          return (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.dayButton,
-                isSelected && styles.selectedDayButton,
-                isCurrentDay && styles.todayButton,
-              ]}
-              onPress={() => selectDay(day)}
-            >
-              <Text style={[
-                styles.dayName,
-                isSelected && styles.selectedDayText,
-                isCurrentDay && styles.todayText,
-              ]}>
-                {dayName}
-              </Text>
-              <Text style={[
-                styles.dayNumber,
-                isSelected && styles.selectedDayText,
-                isCurrentDay && styles.todayText,
-              ]}>
-                {dayNumber}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        {weekDays.map((day, index) => renderDayButton(day, index))}
       </ScrollView>
 
       <View style={styles.headerContainer}>
@@ -272,10 +286,10 @@ export default function WeekScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.todayButton}
+            style={styles.todayNavButton}
             onPress={resetToToday}
           >
-            <Text style={styles.todayButtonText}>Aujourd'hui</Text>
+            <Text style={styles.todayNavButtonText}>Aujourd'hui</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -331,16 +345,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 4,
     borderRadius: 12,
+    position: 'relative',
   },
   selectedDayButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
   },
   todayButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    marginHorizontal: 12,
+    backgroundColor: COLORS.accent + '30',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
   },
   dayName: {
     fontSize: 14,
@@ -351,12 +364,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginTop: 4,
+    color: COLORS.dark,
   },
   selectedDayText: {
     color: '#FFFFFF',
   },
   todayText: {
-    color: '#000000',
+    color: COLORS.primary,
+  },
+  eventIndicator: {
+    position: 'absolute',
+    bottom: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+  },
+  selectedEventIndicator: {
+    backgroundColor: COLORS.background,
   },
   headerContainer: {
     paddingHorizontal: 16,
@@ -378,7 +403,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  todayButtonText: {
+  todayNavButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: COLORS.primary,
+    borderRadius: 20,
+    marginHorizontal: 12,
+  },
+  todayNavButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',

@@ -1,8 +1,8 @@
 // context/EventsContext.tsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { collection, query, getDocs, doc, addDoc, updateDoc, deleteDoc, Timestamp, where, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { auth, db } from '../services/firebase';
 
 // Define types for our context
 export type Event = {
@@ -23,6 +23,8 @@ export type Event = {
   clientPhone?: string;
   clientEmail?: string;
 };
+
+
 
 type FirestoreBooking = {
   id?: string;
@@ -47,6 +49,7 @@ type EventsContextType = {
   deleteEvent: (id: string) => Promise<void>;
   getEventById: (id: string) => Event | undefined;
   refreshEvents: () => Promise<void>;
+  deletePassedEvents: () => Promise<number>;
 };
 
 // Create the context with a default value
@@ -58,6 +61,7 @@ const EventsContext = createContext<EventsContextType>({
   deleteEvent: async () => { },
   getEventById: () => undefined,
   refreshEvents: async () => { },
+  deletePassedEvents: async () => 0,
 });
 
 // Custom hook to use the events context
@@ -137,6 +141,14 @@ export const EventsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const refreshEvents = async () => {
     setLoading(true);
     try {
+      // Vérifier si l'utilisateur est connecté
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log("Aucun utilisateur connecté - impossibilité de charger les événements");
+        setEvents([]); // Réinitialiser les événements si non connecté
+        return;
+      }
+
       const bookingsCollectionRef = collection(db, 'bookings');
       const bookingsQuery = query(bookingsCollectionRef);
       const querySnapshot = await getDocs(bookingsQuery);
@@ -152,15 +164,68 @@ export const EventsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Convertir les réservations Firestore en événements de l'application
       const newEvents = bookings.map(convertBookingToEvent);
       setEvents(newEvents);
-
     } catch (error) {
       console.error('Error loading events from Firestore:', error);
-      Alert.alert('Erreur', 'Impossible de charger les événements');
+      // Ne pas afficher d'alerte pour les erreurs de permissions
+      if (error.code !== 'permission-denied') {
+        Alert.alert('Erreur', 'Impossible de charger les événements');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const deletePassedEvents = async (): Promise<number> => {
+    setLoading(true);
+    try {
+      // Vérifier si l'utilisateur est connecté
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log("Aucun utilisateur connecté - impossible de supprimer les événements");
+        return 0;
+      }
+
+      // Date d'aujourd'hui à minuit pour comparer
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Filtrer les événements passés
+      const passedEvents = events.filter(event => {
+        const eventEndDate = new Date(event.endDate);
+        return eventEndDate < today;
+      });
+
+      // Si aucun événement passé, terminer
+      if (passedEvents.length === 0) {
+        return 0;
+      }
+
+      // Supprimer chaque événement passé de Firestore
+      const deletePromises = passedEvents.map(event => {
+        const bookingRef = doc(db, 'bookings', event.id);
+        return deleteDoc(bookingRef);
+      });
+
+      // Attendre que toutes les suppressions soient terminées
+      await Promise.all(deletePromises);
+
+      // Mettre à jour l'état local
+      const remainingEvents = events.filter(event => {
+        const eventEndDate = new Date(event.endDate);
+        return eventEndDate >= today;
+      });
+
+      setEvents(remainingEvents);
+
+      // Retourner le nombre d'événements supprimés
+      return passedEvents.length;
+    } catch (error) {
+      console.error('Error deleting passed events:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
   // Add a new event
   const addEvent = async (event: Omit<Event, 'id'>): Promise<Event> => {
     setLoading(true);
@@ -430,7 +495,8 @@ export const EventsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateEvent,
     deleteEvent,
     getEventById,
-    refreshEvents
+    refreshEvents,
+    deletePassedEvents
   };
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>;
