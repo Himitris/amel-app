@@ -1,5 +1,6 @@
 {
   "expo": {
+    "entryPoint": "./app/index.tsx",
     "name": "Calendar",
     "slug": "Calendar",
     "version": "1.0.0",
